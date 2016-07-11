@@ -1,10 +1,10 @@
-引言
+第一章： 引言
 规则不会百分之百地使用于任何时刻和场合，但是，它们确实体现了绝大多数情况下的最佳程序设计实践。你不应该盲目地遵从这些规则，但是，你应该只在偶尔的情况下，有充分的理由之后才去打破这些规则。同大多数学科一样，编程首先要学会基本规则，然后才能知道什么时候可以打破这些规则。
 本书大部分内容不是讨论性能的，而是关心如何编写出清晰，正确，可用，健壮，灵活和可维护的程序，如果能做到这一点的话，性能往往会比较容易获取。（注：因为只有做到清晰正确可用可维护，才可能调优，反过来，一般做到这几点的，性能也不会差到哪儿去）
 
 
 
-创建和销毁对象
+第二章： 创建和销毁对象
 第一条，	考虑用静态工厂方法替代构造器
 例如：如果HashMap有静态工厂方法，就可以这么写：
 public static <K, V> HashMap<K, V> newInstance() {
@@ -251,3 +251,232 @@ public Object pop() {
 
 
 第七条，避免使用终结方法
+不要使用默认的finalizer，收尾:每个类都有一个特殊的方法finalizer，它不能被直接调用，而被JVM在适当的时候调用，通常用来处理一些清理资源的工作，因此称为收尾机制，因为finalizer的的缺点在于不能保证会及时的执行，因为JVM会延迟执行终结方法，导致大量有限资源不能释放，比如数据库session；还有一点终结方法很消耗资源，比创建慢400多倍；还有可能引用没有释放掉，导致垃圾回收没有回收这个对象，资源无法释放
+正确的做法是：
+1. try-finally结构，在finally里调用终止方法
+Foo foo = new Foo(...);
+try{
+	...
+} finally {
+	foo.terminate() //比如io.close
+}
+这样做可以防止前面忘记调用终止方法，finally可以保障关闭（FileInputStream，FileOutputStream，Timer，Connection）
+还有一点要注意，如果子类覆盖了父类的finalize方法，则需要显示调用，否则父类终结方法不会被调用
+@Override
+protected void finalize() throws Throwable {
+	try{
+		...
+	} finally {
+		super.finalize();
+	}
+}
+如果都没有重写过finalize方法就没必要显示调用了
+注解：基本上可以说，不要让类自己释放那些有限资源，比如io，要在finally里显式调用，如果有重写过finalize方法，需super（一般不会重写）
+
+
+
+第三章: 对于所有对象都通用的方法
+第八条，覆盖equals时请遵守通用约定
+一般不要覆盖equals，因为可能会导致很严重的错误，但类具有自己独特的相等概念就需要覆盖equals
+约定：
+自反性：任何非null引用x，x.equals(x)返回true
+对称性：任何非null引用值x和y，y.equals(x)为true，则x.equals(y)为true
+传递性：任何非null引用值x，y，z，如果x.equals(y)为true,y.equals(z)为true,则x.equals(z)为true
+一致性：任何非null引用值x和y，多次调用x.equals(y)都会返回true
+
+equals方法编写诀窍：
+1. 使用==检查参数是否为这个对象的引用，如果是返回true（这个应该是对应第一条，自反性）
+2. 使用instanceof坚持参数是否为正确类型
+if(!(o instanceof MyType))
+	return false;
+3. 把参数转换成正确类型，因为进行过instanceof，所以能转换成功
+4. 对于类的每个关键变量，检查参数中的是否和对象中的相匹配
+
+由于第1条规定了自反性，所以编写好之后看是否对称，传递，一致
+还有覆盖equals总要覆盖hashCode，不要让equals过于复杂，容易出错，简洁些；不要把equals声明中的Object对象替换为其他类型，如：
+public boolean equals(MyType o) {
+	...
+}
+这个方法没有覆盖Object.equals，因为参数不是Object，它只是重载了Object.equals方法，所以用Override
+@Override
+public boolean equals(MyType o){
+	...
+}
+（注解：正因为传进来的是Object，所以才需要instanceof还有转换）
+
+
+第九条，覆盖equals时总要覆盖hashCode
+如果没有覆盖hashCode method，则HashMap，Hashtable之类都不用
+相等的对象必须有相等的HashCode
+按照第八条写的equals
+@Override 
+public boolean equals(Object o) {
+	if(o == this)
+		return true;
+	if(!(o instanceof PhoneNumber))
+		return false;
+	PhoneNumber pn = (PhoneNumber)o;
+	return pn.lineNumber == lineNumber
+		&& pn.prefix == prefix
+		&& pn.areaCode == areaCode;
+}
+
+然后HashMap保存
+Map<PhoneNumber, String> m = new HashMap<PhoneNumber, String>();
+m.put(new PhoneNumber(707,867,5397),"jenny");
+用m.get（new PhoneNumber(707,867,5397)）取的时候返回null，而不是jenny，
+因为没有PhoneNumber类没有覆盖HashCode方法，导致两个相等实例具有不同HashCode，所以put方法把对象放到一个Hash bucket里，取的时候又到另一个Hash bucket里
+
+@Override
+public int hashCode() {return 11;}
+上面函数一定能工作，但没有意义，因为把所有都放到11号hash bucket中，导致哈希变成列表，效率低
+一般写hash用result = 31*result + c
+@Override
+public int hashCode() {
+	int result = 17;
+	result = 31*result + areaCode;
+	result = 31*result + prefix;
+	result = 31*result + lineNumber;
+	return result;
+}
+
+有的计算散列开销大，而且类不变时可以考虑把hashCode放到类中，每次到hashCode第一次被调用时才会加载，用volatitle
+private volatile int hashCode; //Lazyliy initialize
+
+@Override
+public int hashCode() {
+	int result = hashCode;
+	if (result == 0) {
+		result = 31*result + areaCode;
+		result = 31*result + prefix;
+		result = 31*result + lineNumber;
+		hashCode = result;
+	}
+	return result;
+}
+
+
+第十条，始终要覆盖toString
+好的toString可以让类用起来更方便， toString返回对象中包含的所有值得关注的信息
+@Override public String toString() {
+	return String.formate("(%03d) %03d-%04d".
+							areaCode, prefix, lineNumber);
+}
+
+
+第十一条， 谨慎覆盖clone
+Object的clone方法是protected的，如果不用反射，就不能仅仅因为实现了Cloneable就调用clone方法，因为不能保证对象拥有一个可访问的clone方法
+clone方法用于深拷贝
+方法1： 调用super.clone,然后递归地深拷贝每个元素
+每个实现了Cloneable接口的类都要有一个公有方法覆盖clone，这个公有方法先调用super.clone，然后对每个元素递归clone
+@Override public HashTable clone() {
+	try {
+		HashTable result = (HashTable)super.clone();
+		result.buckets = new Entry[buckets.length];
+		for(int i=0; i<buckets.length; i++)
+			if (result.buckets[i]!=null) {
+				result.buckets[i] = buckets[i].deepCopy(); //deepCopy是新建一个对象，然后把原来对象的值放到构造函数里构造出新对象
+			}
+			return result;
+	} catch (CloneNotSupportedException e) {
+		throw xxx
+	}
+}
+
+方法2： 先调用super.clone，再把结果对象中的所有的item都设置为空白，调用构造方法来生成新的对象，然后再put，这样比较清楚，但这样没有递归调用clone效率高
+
+方法3： 拷贝构造器
+public static Yun newInstance(Yun yun);
+完全根据各个值new出一个新的，比clone方法有优势，风险低，不必遵守很多既定的规范，不会有一些异常发生
+
+注解：Cloneable有很多问题，clone方法坑也很多，尽量不要用，如果费用不可，就用方法2或方法3，用new的方式，而不要用递归clone，因为有风险，可能有Exception
+
+
+第十二条， 考虑实现Comparable接口
+实现Comparable接口的类，可以用集合的方法，比如sort
+public final class CaseInsensitiveString
+	implements Comparable<CaseInsensitiveString> { //实现Comparable接口，而且泛型写法要注意
+	public int compareTo(CaseInsensitiveString cis) { //compareTo函数，参数是要比较的类本身，而不是Object
+		return String.CASE_INSENSITIVE_ORDER.compare(s, cis.s); //<0小于，>0大于，0等于
+	}
+}
+
+
+
+第四章：类和接口
+第十三条， 使类和成员的可访问性最小化
+良好的模块会隐藏所有实现细节，隔离API与具体实现，模块之间只通过API通信，解除模块间的耦合，可以独立开发，测试，修改
+有公有API后，几乎所有成员变量都该是私有，除非当同一个包内另一个类需要访问一个成员，则删除private变为包级别私有
+注解：尽量降低可访问性，除了公有静态final外，公有类不应该有public的成员变量，而且static final引用对象要不可变，主要是为了防止模块之间的依赖，如果public成员变量，类之间的耦合就会增加
+
+
+第十四条， 在公有类中使用访问方法而非公有变量
+就是用get方法，set方法，而不是用public成员变量，但如果不是public类，是包级别私有或嵌套类，则public成员变量没有本质错误
+
+
+第十五条， 使可变性最小化
+为了使类不可变，或尽量少变化，需要遵循的原则：
+1. 不提供任何修改对象状态的方法（如set方法）
+2. 保证类不会扩展（生命为final）
+3. 多用final
+4. 非final的是private
+5. 可变组件互斥访问
+注解：有些类可能需要这个，比如String，BigDecimal等
+
+
+第十六条， 复合比继承优先
+跨包继承打破了封装性，子类依赖于父类中特定的细节，厄尔父类实现可能会随着版本变化，这样子类会有问题，除非父类是专门为扩展设计的，比如Base类
+复合has a，继承is a
+class Car extends Veicle{ //继承
+	private Wheel w; //复合
+	private Engine e;
+}
+决定使用继承而不是复合之前，应该问一个问题，你继承的类，它的API有没有缺陷？继承会把超类API中的问题传播到子类中，复合则会允许新API隐藏缺陷
+总结：继承很强大，但也存在问题。继承违背了封装原则，只有父类和子类之间确实存在类型关系时，继承可用，但父类和子类处于不同包中，而且父类不是为继承设计的，这种继承就很容易有问题，需用复合来，尤其有接口可以实现包装类时
+
+
+第十七条， 为继承而设计，提供文档说明，否则就不用继承
+原因和第十六条类似，比如测试中Base类就属于为继承而设计，这时就需要有很详细的文档注释
+
+
+第十八条， 接口由于抽象类
+Java只允许单继承，很大程度限制了抽象类，接口可以实现多个；但抽象类有个优势：如果后续版本中增加新方法，可以有默认实现，子类直接继承用就行，而接口就不行
+最佳实践：用抽象类实现接口，Override公用的method，这样既可以让子类继承默认实现，也可以抽象类实现多个接口
+
+//这种实现叫做Skeletal实现，必须有详细的注解，因为这是抽象类所需要有的
+public abstract class AbstractMapEntry<K,V>
+	implements Map.Entry<K,V> {
+	public abstract K getKey();
+	public abstract V getValue();
+
+	public V setValue(V value) { //所有子类必须重写这个方法，否则根本无法存值
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public boolean equals(Object o) { //注意equals的写法，三个步骤，== instanceof Object类型强制转换
+		if(o == this)
+			return false;
+		if(!(o instanceof Map.Entry))
+			return false;
+		Map.Entry<?,?> arg = (Map.Entry) o;
+		return equals(getKey(), arg.getkey() &&
+				equals(getValue(), arg.getValue());
+	}
+	private static boolean equals(Object o1, Object o2) {
+		return o1 == null ? o2 == null : o1.equals(o2);
+	}
+
+	@Ovveride
+	public int hashCode() {
+		return hashCode(getKey() ^ hashCode(getValue());
+	}
+	private static int hashCode(Object obj) {
+		return obj == null ? 0 : obj.hashCode();
+	}
+}
+注意上面这个实现，equals，hashCode，挑最常用的方法在抽象类中实现，子类可直接用，而抽象类又实现接口，实现接口优势和抽象类优势合并
+总结：接口通常是定义允许多个实现类型的最佳途径。这条规则有个例外，当演变的容易性比灵活性和功能更重要的时候，这时应使用抽象类来定义类型。如果导出一个重要接口，就坚决考虑提供Skeletal实现，最后谨慎设计公有接口，并通过编写多个实现来全面测试
+
+
+第十九条， 接口只用于定义类型
