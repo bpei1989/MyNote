@@ -480,3 +480,544 @@ public abstract class AbstractMapEntry<K,V>
 
 
 第十九条， 接口只用于定义类型
+类实现接口，接口就充当可以引用这个类的实例的类型，其他都不是接口的功能，比如各种纯常量接口，接口只定义常量，如果仅是常量则用枚举类
+
+
+第二十条， 类层次优于标签类
+标签就是一个类有多个类型的构造函数，可以构造多个类似于子类的对象，这时就需拆开成子类，总之，明确的继承关系优先使用
+
+//不要这么做，不清晰，如果一个类包含多个类型，就可以拆成子类，明确的继承关系可以使用继承，只有在跨包不为继承关系时才建议复合
+class Figure {
+	enum Shap {  RECTANGLE, CIRCLE };
+//only for rectangle
+	double length;
+	double width;
+
+	double radius; //only for circle
+
+	Figure(double radius){...}
+	Figure(double length, double width) {...}
+	double area() {...}
+	...
+}
+
+//应该这样做
+abstract class Figure {
+	abstract double area();
+}
+
+class Circle extends Figure {
+	final double radius;
+	Circle(double radius) {this.radius = radius;}
+	double area() { return Math.PI * (radius * radius); }
+}
+class Rectangle extends Figure {
+	final double length;
+	final double width;
+	Rectangle(doule length, doulbe width) {
+		this.length = length;
+		this.width = width;
+	}
+	double area() { return length * width; }
+}
+注解：有明确继承的类就可以使用继承，如果多个类有共同点，可以弄一个父类，最好是abstract，不要把类弄得很大，负责很多，职责明确，太多就拆分，既易读，又省内存，效率高
+
+
+第二十一条， 用函数对象表示策略
+Java没有函数指针，但可以用对象引用实现同样的功能。定义这样一个对象，它的方法执行其他对象（从参数传入）上的操作，如果一个类仅仅导出这样一个方法，其实例时机就等于一个指向该方法的指针，这种实例被称为函数对象
+class StringLengthComparator {
+	public int compare(String s1, String s2) {
+		return s1.length() - s2.length();
+	}
+}
+StringLengthComparator是字符串比较操作的具体策略
+作为具体策略类，StringLengthComparator是无状态，所有实例在功能上对等，所以单例模式就很适用
+class StringLengthComparator() {
+	//private构造函数，单例模式
+	private StringLengthComparator() {}
+	public static final StringLengthComparator() INSTANCE = new StringLengthComparator();
+	public int compare(String s1, String s2) {
+		return s1.length -s2.length();
+	}
+}
+如果把StringLengthComparator的实例传给方法则对参数有要求，需要定义一个Comparator接口，StringLengthComparator来实现这个接口，就是说在设计具体策略类时，需要定义一个策略接口
+//策略接口
+public interface Comparator<T> {
+	public int compare(T t1, T t2);
+}
+
+class StringLengthComparator implements Comparator<String> {
+	//和上面一样，单例构造模式
+}
+
+很多时候策略类会用匿名类，如
+Arrays.sort(stringArray, new Comparator<String>() {
+	public int compare(String s1, String s2) {
+		return s1.length() - s2.length();
+	}
+});//匿名类每次执行都会新建
+所以如果重复执行，可以存到一个private static final，这样就可重用了
+由于策略接口用作所有策略类的类型，所以策略类不需要是public，通过宿主类导出静态变量或静态方法，可以实现重用,String的CASE_INSENSITIVE_ORDER就是这个原理
+//宿主类
+class Host {
+	private static class StrlenCmp implements Comparator<String>, Serializable {
+		public int compare(String s1, String s2) {
+			return s1.length() - s2.length();
+		}
+	}
+
+	//静态变量为策略
+	public static final Comparator<String> STRING_LENGTH_COMPARATOR = new StrLenCmp();
+	...
+}
+Array.sort(array, Host.STRING_LENGTH_COMPARATOR)
+注解：函数指针主要是为了实现策略模式，就是自定义策略，java中用一个接口表示策略，每个策略声明一个类实现接口，如果策略只用一次则直接用匿名类来实例化，就是把匿名类当做参数传给排序函数之类，如果重复使用，就像String里的CASE_INSENSITIVE_ORDER，那就要实现为private static class Policy,通过public static final XXX = new Policy() 来表示
+
+
+第二十二条， 优先考虑静态成员类
+定义在一个类内部的类，叫作“嵌套类”。嵌套类分为两种：static的和非static的。后者又有一个专门的名字，叫作“内部类” 内部类有非静态成员类，匿名类，局部类
+public class outerTolocal{
+
+class local{
+
+//此类为局部类局部类不需要加public 修饰符，应为这方法执行完 这类就消失了
+局部变量前面是不可以加权限控制符的，也不能用static修饰。但是可以用final修饰，用来确保这个变量的值不会发生改变。所以如果局部类要访问带修饰的局部变量，只能访问用final修饰的局部变量。但是局部类可以访问外部类的所有成员，包括成员变量。
+
+忘记给你提一点了。局部类只能访问其所在方法中带final关键字的局部变量。
+}
+}
+局部类比较少用，了解
+
+静态成员类是最简单的嵌套类，基本可以看做普通类，只是生命在内部而已，它可以访问外面类的所有成员，静态成员类与静态成员变量等级，访问方法也类似，静态成员类常见用法是辅助类，比如上面StrlenCmp类，调用Host.STRING_LENGTH_COMPARATOR，还有Entry在HashMap中的声明为static class Entry<K,V> implements Map.Entry<K,V>，虽然它声明在HashMap内，但是因为声明为static，对我们而言它就是外部类了，如果要用HashMap中的Entry的话，直接Entry就可以了，不能HashMap.Entry，而在Map中，Entry的声明为interface Entry<K,V>，他是内部接口，用的话必须得Map.Entry来使用。 
+
+非静态成员类实例可以调用外面类实例的方法，它不能单独存在，必须依赖于外面类的实例，常见用法是一个Adapter，如iterator
+public class MySet<E> extends AbstractSet<E> {
+	...
+
+	public Iterator<E> iterator() {
+		return new MyIterator();
+	}
+
+	private class MyIterator implements Iterator<E> {
+	...
+	}
+}
+上面类的用法就是把MyIterator非静态成员类实现自定义的迭代器，这个迭代器可以访问外面的成员变量，而且依附于外面类生成的实例存在，与外面类实例关联，这时就需用非静态成员变量类
+
+如果成员类不需要访问外面类的实例，则要使用静态成员类
+
+匿名类不是外面类的一个成员，声明同时实例化，用于动态创建函数对象，Array.sort(array, new Comparble{...})
+
+局部类用的少
+
+总结：如果成员类的每个实例都需要一个指向外面实例的引用，就需要非静态，否则就静态，如果嵌套类属于某个方法内部，而且只需要在一个地方创建实例，则用匿名类，其他情况局部类，一般不怎么用局部类
+
+
+
+第5章 泛型
+第二十三条，不要再新代码中用原生态类型
+每个泛型都有一个原生态（raw）类型，List<E>原生态类型List，原生态类型失去泛型在安全和表达方面的优势
+List list;
+list.add(new xxx)//任意类型
+有风险，比如java.util.Date实例放入到java.sql.Date的list中，编译时不报错，如果用泛型
+List<String> list= new ArrayList<String>();
+则list.add(0)//报错，类型不匹配
+
+如果需要匹配任意对象则可以List<Object>，和原生态类型区别前者告诉编译器可以接受任何类型，后者干脆什么都没告诉编译器，如果把List<String>类型放入List<Object>出错，泛型子类化规则，List<String>是List的一个子类型，不是List<Object>子类型
+
+public static void main(String[] args) {
+	List<String> strings = new ArrayList<String>();
+	unsafeAdd(strings, new Integer(42));
+	String s - strings.get(0);
+}
+static void unsafeAdd(List list, Object o) {//List参数，不是List<String>
+	list.add(o);
+}
+程序可以编译，运行时报错，这样有风险
+
+把unsafeAdd参数改成List<Object>则编译时就会出错
+如果用List这样的原生态类型，则会失掉安全性，如果用List<Object>则不会
+
+无限制的通配符?，List<?>不确定或不关心参数类型
+
+例外，类文字中需要用原生态类型，List.class,但List<?>.class不合法
+还有在instanceof需要原生态类型
+if (o instanceof Set) {
+	Set<?> m = (Set<?>) o; //如果是马上转换 
+}
+总结：原生态类型运行时有风险，Set<Object>是个参数化类型，可以包含任何对象类型的一个集合，Set<?>通配符类型，只能包含某种未知对象的一个集合；Set是原生态集合，脱离泛型，不安全。
+其实<String>,<Object>,<?>逐层递减限制，不过都告诉编译器范围，Set什么都没告诉编译器，不安全，不要用，但在class和istanceof中可以用
+
+
+第二十四条， 消除unchecked warning
+尽量消除每个warning，因为有一定道理给warning，如果确实没法消除则用@SuppressWarnings("unchecked")，但要有注释说明原因
+
+
+第二十五条， 列表优先于数组
+Object[] objectArray = new Long[1];
+objectArray[0] = "abc"//运行时抛出异常
+
+List<Object> o = new ArrayList<Long>();//不能编译
+
+注意数组有父类子类关系，泛型没有，List<Object>不是List<Long>的父类
+数组在运行时才会检查元素类型，泛型通过擦除来实现，泛型只是在编译时规定类型，运行时丢弃类型，就是说运行时没有泛型，泛型只是编译时为了安全和表述增加的
+注解：泛型用List，别用数组
+
+
+第二十六条， 优先考虑泛型
+泛型更安全，易读，还可以声明为
+class DelayQueue<E extends Delayed> implements BlockingQueue<E>;
+public class Stack<E> {
+	public void push(E e) {
+	...
+	}
+
+	public E pop() {
+		...
+	} 
+}
+注意泛型的声明
+注解：直接用集合泛型就好，写泛型有坑，不要轻易用，知道泛型的声明方法就行
+
+
+第二十七条，优先考虑泛型方法
+理由类似二十六，个人认为泛型一般用于存储某些类的时候用，而java提供的集合就够用了，不怎么需要自己开发，尽量不要自己写泛型
+
+
+第二十八条， 用有限通配符提高API灵活性
+Iterator<? extends T> i = list.iterator(); //任何T的子类，Iterator
+<? super T>
+如果参数化类型表示一个T生产者，用<? extends T>;如果参数化类型表示一个T消费者，则用<? super T>，
+弄不清生产者消费者，就直接考虑需要用的参数是子类合适还是父类合适，是向上兼容或向下兼容
+Stack popAll的参数通过Stack消费E，则用Collection<? super E>,push生产则用<? extends T>,这个比单纯E，T灵活
+注解：发布公用API一般都要用?
+
+
+第二十九条， 优先考虑类型安全的异构容器
+基本思路是把类型参数放在键上而不是Map上，自己创建一个新的容器，Class为键，Class<T> t,打破规定类型的限制，不怎么明白，不要用这个，知道就好了
+
+
+
+第6章： 枚举和注解
+第三十条， 用enum代替int常量
+public static final int APPLE_FUJI = 0;
+public static final int APPLE_PIPPIN = 1;
+
+public static final int ORANGE_NAVEL = 0;
+public static final int ORANGE_TMEPLE = 1;
+上面的声明就是int常量，这种做法有提示和安全方面问题，如果把APPLE赋给ORANGE不会出错，APPLE == ORANGE也不会提示
+
+枚举类型是final，客户端既不能创建枚举类型的实例，也不能对它重写，它们是单例的，泛型的，安全的，因为编译器会检查，如果不属于枚举之内的会报错
+public enum Apple { FUJI, PIPPIN }
+public enum Orange{ NAVEL, TEMPLE, BLOOD }
+
+枚举类型还允许添加方法，枚举类型不可变，其成员为final
+
+//计算星球属性,注意枚举可以是括号括起来的，里面每个item，在调用构造函数时会自动装填
+public enum Planet {
+	EARTH(5.975e+24, 6.378e6), //逗号
+	MARS(6.419e+23, 3.393e6); //分号
+
+	private final double mass; //声明为private final，有public的方法来返回
+	private final double radius;
+	private final double surfaceGravity;
+
+	private static final double G = 6.67300E-11;
+
+	Planet(double mass, double radius) {
+		this.mass = mass;
+		this.radius = radius;
+		surfaceGravity = G * mass / (radius * radius);
+	}
+
+//public方法返回各项成员变量值
+	public double mass() {return mass;}
+	public double radius() {return radius;}
+	public double surfaceGravity() {return surfaceGravity;}
+
+	public double surfaceWeight(double mass) {
+		return mass * surfaceGravity;
+	}
+}
+
+public static void main(String[] args) {
+	double earthWeight = Double.parseDouble(args[0]);
+	double mass = earthWeight / Planet.EARTH.surfaceGravity(); //调用构造函数.返回EARTH.返回具体EARTH参数
+	for (Planet p : Planet:values()) { //注意values可以直接返回各个枚举，for循环:即可
+		System.out.println(p, p.surfaceWeight(mass));
+	}
+}
+
+枚举类可以为顶层类的成员类，用于各种常量操作表达，比直接static final xxx更好，易复用，更清晰，更强大，可编写各种函数，独立解耦
+
+//抽象方法多个枚举
+public enum Operation {
+//这两个是枚举的具体item，不是枚举类，虽然有函数，可以说是类枚举，枚举item是类，不是常量
+	PLUS { double apply(double x, double y) {return x+y;} } 
+	MINUS { double apply(double x, double y) {return x-y;} }
+
+	abstract double apply(double x, double y); //这里的抽象方法，在其他内部枚举中必须实现
+
+	private final String symbol;
+	Operation(String symbol) { this.symbol = symbol; } //构造
+	@Override public String toString() {return symbol;} //toString常用，注意返回自定义的描述
+}
+
+public staic void main(String[] args) {
+	double x = xxx;
+	double y = xxx;
+	for (Operation p : Operation.values())
+		system.out.printf(x, p, y, p.apply(x,y));//p打印toString的结果
+}
+
+枚举内部还可以枚举
+emum PayrollDay {
+	xxx
+
+	private enum Pay {
+		xxx
+	}
+}
+
+总结： 枚举更安全，强大，可编写函数操作各项，包括抽象的非抽象的，如果常量很多可以考虑放到枚举类中统一操控，比放到类中要好，放到类中比较乱，而且如果在多个地方用的话，可能不如放到枚举中易读，安全，灵活
+
+
+第三十一条， 用实例代替序数
+ordinal方法可返回枚举类型具体item的位置，类似于下标，但不要用，因为排序后会破坏，绝对不要根据枚举的序数ordinal来导出相关值，而是要保存在一个实例
+public enum Music {
+	SOLO(1), DUET(2), NONET(9); //各种乐队需要的人数
+	private final int number; 
+	Music(int size) { this.number = size;} //注意这个自动装填，枚举括号里和这个有mapping关系， Music.SOLO,size自动为1
+	public int numberOfMusic() {return number;}
+}
+
+
+第三十二 第三十三条， 用EnumSet， EnumMap，不太可能用到，基本意思是EnumSet等是类似Map，set，不过存的是Enum，用这个，不要用ordinal
+第三十四条， 枚举类implements Interface，实现动态扩展，不过基本不会用，枚举就是不变的情况下用的，如果动态扩展的话就不要用枚举了，而且就算扩展了，修改枚举类就行，没必要非要写个接口来增加复杂度
+
+
+第三十五条， 优先使用注解
+Junit里@Test, 
+@Override
+注解简单而且安全，优先考虑注解，包括Spring里很多注解可以简化xml
+
+
+第三十六条， 使用Override，这个不用说了，很重要
+
+
+第三十七条， 用标记接口定义类型，基本意思是接口用于标记类型，如果要定义类型就一定用接口
+
+
+
+第7章 方法
+第三十八条， 检查参数的有效性
+方法尤其是构造方法必须检查有效性，如果参数非法，可能会在后面抛出各种异常，而且难以debug，保持写下面这样注释的习惯,尤其是通用的方法
+/**
+ *这个方法的功能
+ *
+ *@param 参数的意义和有效性，比如，数组长度必须大于零
+ *@return 返回什么
+ *@throws xxxException if xxx
+ */
+ public BigInteger mod(BigInteger b) {
+ 	ifxxx
+ }
+ 非公有方法用assert
+ private static void sort(xxx) {
+ 	assert xxx != null;
+ 	assert a > 0 && b < 0;
+ }
+
+
+ 第三十九条， 必要时进行保护拷贝，基本意思是为避免安全问题，可以用clone深拷贝出一份操作，但性能会低一些
+
+
+ 第四十条， API设计技巧总结
+ 谨慎选择方法名称：方法命名要易于理解，并且和同一包中的其他方法命名规则类似
+
+ 不要过于追求提供便利的方法，接口设计不要太多方法，否则实现者的就会复杂，难以使用，测试，维护。一项操作特别常用，可以考虑提供便利快捷的方法，否则还是不提供的为好，不要让接口过于庞大，方法太多
+
+ 避免过长的参数列表，最多四个，太多根本记不住出错概率大大增加，尤其是顺序弄错。
+ 有三种方法避免过长参数
+ 第一种方法：把方法拆成多个方法，但这样可能导致方法过多，可以通过正交减少方法，比如List接口中没有在子列表中查找第一个和最后一个的方法，因为都需要第三个参数，提供subList(),结合indexOf就可以实现，总之就是如果类中有可以实现的方法，就没必要设计太多
+ 第二种方法：创建辅助类，辅助类来存各种参数，一般为静态成员类，如果参数之间有逻辑关系，就可以设计成一个参数类，比如扑克牌的各个花色
+ 第三种方法：Builder，定义一个对象表示所有参数，然后调用多个setter，相当于前两种的集合
+
+ 参数类型优先使用接口，这样可以传入更多类型
+
+ 可以考虑用只有两种类型的枚举代替boolean，比如
+ public enum Temperature { FAHENHEIT, CELSISUS }
+ Thermometer.newInstance(true)//可读性不好
+ Thermometer.newInstance(Temperature.FAHENHEIT)//易读
+
+
+第四十一条，慎用重载 
+重载务必要避免参数经过转化就可以用另一个的情况，因为这时很有可能会调错方法。
+对于多个具有相同参数数目的方法来说，尽量避免重载（不要有两个具有相同参数数目的重载方法），不过构造函数很难做到这一点，那么至少避免这样的情形：同一组参数只要经过类型转化就能传递给不同重载方法，如果这个也不能保证，比如改造一个现有类实现新接口，那就传递同样参数时，所有重载方法的行为一致
+注：其实主要是前两条，如果是普通方法压根就不要提供相同数目的重载方法，如果是构造函数则不要提供经过类型转换就能用的方法
+
+
+第42条， 慎用可变参数
+static int sum(int... arg) { //...是可变的参数，参数长度不一定
+	int sum = 0;
+	for (int arg : args)
+		sum += arg;
+	return sum;
+}
+
+一个或多个
+static int min(int ...arg){...} //这种方法的问题是如果没有传入参数则在编译时不会报错，而是运行时
+解决方法：
+static int min(int arg, int ...following) {...}
+注解：参数个数不确定可以用，但不要乱用，也可以说能不用就不用，非要用注意如果没参数的处理
+
+
+第四十三条， 返回零长度集合而不是null
+返回类型为Set，Map之类，不要返null，因为调用者可能会忘了判空导致错误，这种C的做法在Java不可取
+返回长度为0的集合根本不会影响性能，因为可以忽略不计但可避免大量的判空和Nullexception
+正确写法：
+public List<Cheese> getCheeseList() {
+	if (cheeseInStock.isEmpty())
+		return Collections.emptyList(); //正确做法，这样客户端就可以直接arrayList.contains(xxx)，不必担心arrayList为空
+
+}
+
+
+第四十四条， 为所有导出的API元素编写文档注释（没注释的函数根本不能算API，尤其是常用的，按javadoc格式编写，可自动生成文档）
+/**
+ *这个方法的功能
+ *
+ *@param 参数的意义和有效性，比如，数组长度必须大于零
+ *@return 返回什么
+ *@throws xxxException if xxx
+ */
+
+
+
+第8章： 通用程序设计
+第四十五条， 将局部变量的作用域最小化
+C语言必须在开头声明，这种做法在Java中必须改掉，java允许在任何地方声明，最有力的方法就是在第一次使用它的地方声明让局部变量的作用域最小化。
+每个局部变量的声明都要初始化，避免int n；
+for(int i=0, n = xxx.get; i<n; i++) //简洁高效，注意i n之间逗号
+
+
+第四十六条， for-each优先
+for (Item i : ItemColleciton) {
+	...
+}
+优先用这种写法，而不是iterator
+：可以循环实现Iterable接口的对象
+注解：直接用java提供的类型，List，Map，Set，不要自己弄，否则各种坑，比如Iterable，各种equals，hashCode一大堆，根本得不偿失
+
+
+第四十七条， 了解和使用类库
+注： 别重复造轮子，直接用Java库和第三方库，可以略加封装，不要自己造核心部分，根本弄不好
+
+
+第四十八条， 精度敏感情况，严禁使用float double
+浮点型不精准，比如钱不能用浮点型，浮点型只是接近真实，只能用于不敏感的时候
+0.06 + 0.01 = 0.06999999999999999，由于浮点计算的方法导致
+用int，long，BigDecimal计算钱
+public class Arith {
+/**
+ * 提供精确加法计算的add方法
+ * @param value1 被加数
+ * @param value2 加数
+ * @return 两个参数的和
+ */
+public static double add(double value1,double value2){
+BigDecimal b1 = new BigDecimal(Double.valueOf(value1));
+BigDecimal b2 = new BigDecimal(Double.valueOf(value2));
+return b1.add(b2).doubleValue();
+}
+/**
+ * 提供精确减法运算的sub方法
+ * @param value1 被减数
+ * @param value2 减数
+ * @return 两个参数的差
+ */
+public static double sub(double value1,double value2){
+BigDecimal b1 = new BigDecimal(Double.valueOf(value1));
+BigDecimal b2 = new BigDecimal(Double.valueOf(value2));
+return b1.subtract(b2).doubleValue();
+}
+/**
+ * 提供精确乘法运算的mul方法
+ * @param value1 被乘数
+ * @param value2 乘数
+ * @return 两个参数的积
+ */
+public static double mul(double value1,double value2){
+BigDecimal b1 = new BigDecimal(Double.valueOf(value1));
+BigDecimal b2 = new BigDecimal(Double.valueOf(value2));
+return b1.multiply(b2).doubleValue();
+}
+/**
+ * 提供精确的除法运算方法div
+ * @param value1 被除数
+ * @param value2 除数
+ * @param scale 精确范围
+ * @return 两个参数的商
+ * @throws IllegalAccessException
+ */
+public static double div(double value1,double value2,int scale) throws IllegalAccessException{
+//如果精确范围小于0，抛出异常信息
+if(scale<0){ 
+  throw new IllegalAccessException("精确度不能小于0");
+}
+BigDecimal b1 = new BigDecimal(Double.valueOf(value1));
+BigDecimal b2 = new BigDecimal(Double.valueOf(value2));
+return b1.divide(b2, scale).doubleValue();
+}
+}
+注意BigDecimal需要new，然后不能直接加减乘除而是需要用divide，multiply，subtract等
+
+
+第四十九条， 基本类型优于装箱类型
+int double 基本类型， Integer 装箱类型
+在以下情形使用装箱类型：
+集合的元素，不如Map<Integer, Long>;参数化类型，ThreadLocal<Integer>;进行反射方法调用
+因为上面几种情况必须使用类，装箱类型是类
+
+其他情况尽量用基本类型，因为：
+装箱类型的==是比较两个对象是否为同一个对象，不是真正的值相等，只有在装箱类型和基本类型比较java才会自动拆箱
+装箱类型有性能问题，尤其在循环中，很容易新建大量临时装箱类型，而且自动拆箱消耗大
+
+
+第五十条， 如果其他类型合适，那就尽量避免用字符串
+这条基本可以不遵守，因为字符串太常用了，其他用不好容易出错
+
+
+第五十一条， 小心字符串连接的性能
++不适合大量字符串，由于字符串不可变，连接需要拷贝，大量拷贝耗费性能
+数目大的字符串用StringBuilder
+StringBuilder b = new StringBuilder();//线程不安全
+b.append(string);
+
+stringbuffer和StringBuilder用法一样，线程安全
+
+
+第52条， 通过接口引用对象
+Map<String> map = new HashMap<String>();
+不仅是返回值，包括类型，参数都要接口声明
+Set<String> stringSet = null;
+private Set<String> fetchValue() {...}
+注解：原因很简单，灵活，兼容
+
+
+第53条， 接口优先于反射机制
+反射通过程序来访问关于已加载类的信息，Class实例可以访问到构造器，方法，成员变量，但是缺点是： 性能低，代码可读性差，无法编译检查
+反射很强大对于编写框架可以用（Spring）一般复杂系统常用，不过反射机制最好仅用于实例化对象，访问对象要用接口或者父类
+注解： 反射能不用就不用，唯一一个用处就是spring之类的框架，基本可以说可以不用反射，因为有spring框架，不需要自己造轮子，知道原理就行
+
+
+第54条， 谨慎使用本地方法
+Java调用其他程序写的程序，类似exec
+注解：本地程序不易可能引入异常，降低性能，只有在不需要性能而且本地已经有程序不想重写，或其他语言有优势java不好写的情况下再用，比如自己用的工具
+
+
+第五十五条， 谨慎进行优化
+如果性能不好先考虑是不是算法不好，底层优化无法弥补算法的消耗，比如返回null之类的看似会省一些资源的做法不可取，不要牺牲可用性，可读性来换取少量微不足道的资源
+注解： 中规中矩写就行，不要弄些自己的各种结构，jdk的第三方的都是优化过的，调用即可，最多封装下，不要自己造轮子
+
+
