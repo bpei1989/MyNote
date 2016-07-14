@@ -1021,3 +1021,372 @@ Java调用其他程序写的程序，类似exec
 注解： 中规中矩写就行，不要弄些自己的各种结构，jdk的第三方的都是优化过的，调用即可，最多封装下，不要自己造轮子
 
 
+第五十六条， 命名要规范
+包：com.google.inject
+类或接口: Timer,HttpServlet
+方法： remove, ensureCap
+常量： MIN_VAL
+局部变量： i,max,houseLocation
+类型参数： T，E,K(这里指泛型中用的参数)
+
+
+
+第9章：异常
+第五十七条，只针对异常情况使用异常
+基本意思是很多时候不要做一些无谓的try catch，只有在可能发生异常的情况用
+如线程
+try {
+	while(running) {
+	
+	}
+}catch(xxxException)
+因为线程随时可被终止，所以需要有try catch，如果没有就无法处理异常导致线程状态不可预测
+
+try{
+	xxx
+} catch (Exception e) {
+	f.close();
+}
+各种文件流关闭也要try catch，如果不用就可能导致无法释放文件读写资源
+
+总之必须用才用，否则就不用，通常来说涉及到资源释放，线程中断后处理，各种中间随时可能有异常的交互就必须用，否则导致资源无法释放，其他情况基本可以不用
+
+
+第五十八条， 对可恢复的情况使用受检异常，对编程错误使用运行时异常
+基本上对一些可预期的异常，比如取钱，但余额不足，这种异常就需要有个方法处理
+try{
+	atm()
+} catch (NotEnoughException e) {
+	handleNotEnoughMethod(xxx)
+} finally {
+	getCard
+}
+
+如果是不可预测的错误或调用者错误传参导致的，那就是RuntimeException子类，不要自己定义
+try{
+	outofMemory
+} catch (subRuntimeException) {
+	不用写处理函数，因为没什么处理的，直接打印异常原因和函数调用栈即可
+}
+
+
+第五十九条， 避免不必要地使用受检异常
+可预测的异常也要适度使用，虽然有用但如果泛滥就会增加使用的难度，各种catch可读性也差
+
+try {
+	o.action(arg);
+} catch (TheCheckException e) {
+	handleIt();
+}
+如果可以的话，尝试下面的写法，不需要try catch，不会有太多异常
+if(obj.actionPermitted(arg)) {
+	obj.action(arg);
+} else {
+	handleit();
+}
+注解：这种方法在同步中要放在同步块中，因为中间可能改变Permitted的状态
+
+
+第六十条， 优先使用标准异常
+不要自己造异常类，用Java提供的，最常用的如下：
+IllegalArgumentException	非null的参数值不正确
+IllegalStateException		对于方法调用而言，对象状态不合适
+NullPonterException			禁止用null的情况下参数为null
+IndexOutOfBoundsExcetpion	下标值越界
+ConcurrentModificationException	禁止并发修改，但检测到对象的并发修改
+UnsupportedOperationException	对象不支持调用的方法
+注解：还有IO的，各种框架比如Spring里的异常，总之不要自己造，直接用就行
+
+
+第六十一条， 抛出与抽象对应的异常
+如果存在函数调用链，底层的异常在上层开来就很奇怪，如果层层上抛，调用者就会误解
+最好的做法是，如果这个异常能描述情况而且上层能看懂，就直接抛出，否则就抛出新的异常
+try {
+	
+} catch (LowerLevelException l) {
+	throw new HighLevelException(l);
+}
+注解：这种做法不一定总用，因为现在的框架包装很好，不过有时需要就可以用
+
+
+第六十二条， 每个方法抛出的异常都要有文档
+基本意思是为每个异常在函数的注解中添加@throws，注意这个是可预期的，而不是runtiemerror，每个throws都是checked exception
+
+
+第六十三条， 在细节消息中包含能捕捉失败的信息
+如果自己写异常，需要注意toString，函数调用栈打印需要调用toString，还有更好的构造函数，这样在toString里能打印更详细的信息
+public IndexOutOfBoundException(int lowerBound, int upperBound, int index) {
+	super("Lower bound: " + lowerBoundxxx);
+	this.lowerBound = lowerBound;
+	...
+}
+打印出各个范围，更详细，更易读
+注解： 还是不要自己写异常的好，如果非写不可，必须继承自一个成熟的异常，先super，再稍加改造，添加些信息就行，放到toString
+
+
+第六十四条， 努力使失败保持原子性
+比如取钱，余额不足，还剩99，取一百，加入先修改状态，再报异常就会有问题
+try {
+	balance = balance - 100
+} catch (NotEnough) {
+	...
+}
+虽然报失败了，但余额变成了-1
+
+务必记住任何的异常都应该在对象状态改变之前抛出，实在不行就在异常抛出后有恢复代码，再不行就先拷贝一份，异常后马上覆盖
+
+if(balance - 100 >= 0){
+	balance = balance - 100;
+} else {
+	throw Exception
+}
+
+try {
+	balance = balance - 100
+} catch (NotEnough) {
+	restore();
+}
+
+try {
+	tmp = balance
+	balance = balance - 100
+} catch (NotEnough) {
+	balance = tmp;
+}
+
+还有就是多线程中需要有好的同步，否则异常而且不容易恢复
+注： 最后修改状态很重要，避免很多不必要的失误，或者先备份，失败后再恢复
+
+
+第六十五条， 不要忽略异常
+基本意思是异常不可轻易忽略，如果要忽略，需要打印为什么忽略
+
+
+
+第10章：并发
+第六十八条， 同步访问共享的可变数据
+synchronized可以保证在同一时间只有一个线程执行某代码块或者方法，很多人把它理解为互斥，但这不全面，一方面是互斥，另一方面是如果没有synchronized关键字，这个代码块或者函数在其他线程根本不可见
+
+public class StopThread {
+	private static boolean stopRequested;
+
+	public static void main(String[] args) throws InterruptedException {
+		Thread backgroundThread = new Thread(new Runnable() {
+			public void run() {
+				int i = 0;
+				while(!stopRequested)
+					i++;
+			}
+		});
+		backgroundThread.start();
+		stopRequested = true;
+	}
+}
+这个程序会一直运行不能停止，因为stopRequested在主线程做的改变根本无法同步到里面，如果变量名是非同步的，没有volatile，Atomic 那么这个变量根本无法被JMM（java内存模型）识别为线程共享的变量（很重要）
+
+public class StopThread{
+	private static boolean stopRequested;
+	private static synchronized void requestStop() {
+		stopRequested = true;
+	}
+	private static synchronized void stopRequested() {
+		return stopRequested;
+	}
+
+	public static void main(String[] args) throws InterruptedException {
+		Thread backgroundThread = new Thread(new Runnable() {
+			public void run() {
+				int i = 0;
+				while(!stopRequested)
+					i++;
+			}
+		});
+		backgroundThread.start();
+
+		sleep(1);
+		requestStop;
+	}
+}
+这个程序也不会停止，因为stopRequested不是volatile或者Atomic， 而且同步方法部分根本没必要同步，因为压根是原子的，没有涉及++,--等有中间值得操作
+
+正确做法：
+public class StopThread {
+	private static volatile boolean stopRequested;//volatile可以被java内存模型识别，而且保证其他线程可见，但不保证锁
+
+	public static void main(String[] args) throws InterruptedException {
+		Thread backgroundThread = new Thread(new Runnable() {
+			public void run() {
+				int i = 0;
+				while(!stopRequested)
+					i++;
+			}
+		});
+		backgroundThread.start();
+		stopRequested = true;
+	}
+}
+
+volatile只是保证其他线程可见，并不保证同步，就是在计算过程中随时可能被其他线程修改，只不过当前线程可以读到修改的结果，这期间没有锁，而是通过JMM保证的，volatile只是保证变量多线程可见，同步还得用synchronized，Lock
+private static volatile int num = 0;
+public static int generateSerialNumber() {
+	return num++; //线程不安全，因为++是先加在赋值，中间可能被修改
+}
+用AtomicLong，保证原子性（注意volatile和Automic的区别，volatile只是保证多个线程可修改，可读到最新的值，并不保证原子性，Automic保证线程可见，保证原子性，一般变量volatile就行，操作的++ , --最好用Atomic）
+private static final AtomicLong num = 0;
+public staic long number() {
+	return num.getAndIncrement(); //注意Atomic的用法，有些类似BigDecimal，需要调用方法来操作
+}
+
+注解：注意volatile，Atomic，synchronized，总之就是volatile对多线程可见，Atomic保证可见原子，用于++ --,synchronized用于修改volatile而且可能导致不同步的代码块或函数
+
+
+第六十七条， 避免过度同步
+避免在同步区域内调用其他外部函数，尤其是这个外部函数是类内，对待修改变量可操作的，如：
+public class ObserverableSet<E> {
+	...
+	public void addObserver(SetObserver<E> observer) {
+		synchronized(observers) {
+			observers.add(observer);
+		}
+	}
+	public boolean removeObserver(SetObserver<E> observer) {
+		synchronized(observers) {
+			return observers.remove(observer);
+		}
+	}
+	private void notifyElementAdded(E element) {
+		synchronized(observers) {
+			for (SetObserver<E> observer : observers)
+				observer.added(this, element);
+		}
+	}
+
+
+}
+...
+for(int i = 0; i < 100; i++)
+	set.add(i); 
+可以正常运行
+set.addObserver(new SetObserver<Integer>() {
+	public void added(xxx) { //重写added
+		if（e == 20） s.removeobserver(this); //当加到第二十个就移除掉
+	}
+});
+这个程序会有问题，报ConcurrentModificationException
+因为notifyElementAdded调用added时，正处于遍历列表中，第二十个却要移除，synchronized只能防止并发修改，无法防止线程本身里的方法，第一个方法notifyElementAdded有synchronized，第二个方法同样可以获得锁，因为重写后的added方法属于add方法内部，相当于自己修改自己，而且在同步块内部，就会有ConcurrentModificationException
+
+这种方法会导致死锁：
+set.addObserver(new SetObserver<Integer>() {
+	public void added(xxx) {
+		if(e == 23) {
+			ExecutorService executor = Executors.newSingleThreadExecutor();
+			final SetObserver<Integer> observer = this;
+			try {
+				executor.submit(new Runnable() { //用一个新线程去删除
+					public void run() {
+						s.removeObserver(observer);
+					}
+				}).get();
+			} catch xxx
+				...
+			finally {
+				executor.shutdown();
+			}
+		}
+	}
+});
+由于后台调用s.removeObserver企图获取锁，但主线程已经获取锁了，在遍历列表时，这时主线程自己获取锁，然后还在等待新建线程获取锁，死锁
+
+解决方法：
+把外来方法调出同步块
+List<SetObserver<E>> snapshot = null;
+synchronized(observers) {
+	snapshot = new ArrayList<SetObserver<E>>(observers);
+}
+for (SetObserver<E> observer:snapshot) //在synchronized外面不涉及锁，所以重写add方法不会导致问题
+	observer.added(xx);
+
+还有一种方法，用concurrent collection，CopyOnWriteArrayList，这个数据结构，可在写的时候拷贝数组，总之就是可以在多线程使用而不需要同步，因为java已经做了。
+
+总结：避免在同步块内调用其他访问同步的代码，基本可以说尽量少调用其他未知函数，限制在同步区的代码量和复杂度，不要类内部同步，不同函数相互在同步区域访问受保护的数据，容易引起异常死锁，因为同步是线程间的，现场内部很容易出异常，而且防止自己持有锁还新起线程获取锁
+
+
+第六十八条， executor和task优于线程
+java.util.concurrent是线程中很重要的包，要常用，不要自己控制线程很容易出错
+ExecutorService executor = Executors.newSingleThreadExecutor();
+executor.execute(runnable);
+executor.shutdown();
+
+TheadPoolExecutor用于管理多个线程
+注： 务必用Java提供的东西，别自己瞎写，容易出问题，尤其是逻辑复杂时
+
+
+第六十九条， 并发工具优先于wait和notify
+并发工具有三种（在java.util.concurrent中）：Executor Framework,并发集合和同步器
+并发集合为标准集合接口List，Set，map的concurrent版，比如ConcurrentMap
+BlockingQueue用于同步队列，如果队列为空就等待，大多数ExecutorService的实现都用的这个，如ThreadPoolExecutor
+优先使用ConcurrentCollection
+
+同步器Synchronizer是如Semaphore之类的对象，更优化，更好用
+
+总结： 用ConCurrentHashMap，ThreadPoolExecutor，Semaphore，不要用其他Java初级提供的notify等，用concurrent包，而不是其他的
+
+
+第七十条， 线程安全性的文档化
+告诉线程的安全级别，比如非线程安全等，这个主要是写API时用，暂时不用管这条
+
+
+第七十一条， 慎用延迟初始化
+private FieldType field;
+synchronized FiledType getField() {
+	if (field == null)
+		field = computeFieldValue();
+	return field;
+}
+用到在初始化，到时这种延迟初始化会导致用时慢，一般能不用就不用，正常初始化优于延迟初始化，个人觉得延迟初始化可能会忘了初始化，用时发生异常，所以最好不用
+
+
+第七十二条， 不要依赖于线程调度器
+yield，优先级等调度器，如果调试时可以用，但是在运行时，如果线程的结果依赖于调度器则不可行，因为不同的电脑上优先级之类的可能不确定，有效性也不一定，如果线程的执行结果依赖于调度则可移植性就会差很多
+
+
+第七十三条， 避免使用线程组
+用线程池，而不是线程组，这是个java的烂尾组件，直接用新的，ConcurrentMap，线程池
+
+
+
+第十一章， 序列化
+第七十四条， 谨慎地实现Serializable接口
+序列化是把一个对喜爱那个编码成字节流，反过来是反序列化，一个实例序列化implements Serializable就行，但是会引发很多问题
+第一，序列化后的接口发布就降低了灵活性，以后需要不断兼容序列化各种麻烦
+第二，测试负担加重，后面每次都要测序列化
+注解：如果一个类是为继承而设计的，则不要实现序列化，如果一个类只影响自己，而且很需要序列化，那就可以用
+
+
+第七十五条， 设计自己的序列化
+基本意思是规避掉默认序列化的缺点，反正序列化少用，用了就默认，其他的不考虑
+
+第七十六条，第七十七条都是关于怎么写自定义序列化的，比如readObj之类的，先不考虑自己写序列化的情况
+
+
+第七十八条， 考虑用序列化代理代替序列化实例
+如果非序列化不可，就用这种方法，内部静态类实现序列化，而不是外部类自己,静态类的构造函数参数是外部类，需要的话就把外部类实例传进来序列化
+public　class Period {
+	...
+
+	private static class SerializeationProxy implements Serilizable {
+		private final Date start;
+		private final Date end;
+
+		SerializeationProxy(Period time) {
+			this.start = time.start;
+			this.end = time.end;
+		}
+	}
+
+	private Object write() {
+		return new SerializeationProxy(this);
+	}
+}
+
+/*****************The End*****************/
