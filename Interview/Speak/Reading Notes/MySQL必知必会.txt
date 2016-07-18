@@ -1,1 +1,446 @@
-﻿第一章 了解SQL
+第一章 了解SQL
+理解数据库最简单的办法是将其想象成一个文件柜，数据库是一种保存有组织数据的容器
+数据库管理系统，DBMS，可以创建和操作数据库，你并不直接访问数据库，而是使用DBMS，替你访问数据库，不要混淆数据库和数据库管理系统，MySQL是一个关系型数据库管理系统
+
+表是一种结构化文件，类似于文件柜中的文件
+表由一个或多个列组成，列（column）表中的一个字段，每个列都有数据类型（datatype）限制该列存储的数据
+行（row）表中的一个记录
+
+主键（primary key）一列（或一组列），它的值能区分表中的每行，虽然并不总是需要主键，但是应该保证每个表具有一个主键，以便于操纵和管理。
+任何列都可以作为主键，只要满足以下两个条件：任意两行都不具有相同的主键值；每行都必须具有一个主键值（主键值不允许为NULL）
+主键通常定义在表的一列上，也可以用多个列作为主键，在使用多列作为主键时，所有列值得组合必须是唯一的（单列的值可以不唯一）
+主键的最好习惯：不更新主键列中的值，不重用主键列中的值，不在主键中用可能会更改的值。（注：一般是ID为主键，符合所有要求）
+
+SQL是专门用于与数据库通信的语言
+
+
+第二章 MySQL简介
+MySql是一种DBMS，C/S结构的数据库，Client用于提交请求，Server负责处理请求（增删改查）
+mysql --help获取各种用法
+连接mysql -u ben -p -h myserver -P 9999
+
+其他图形界面client： MySQL Administrator， MySQL Query Browser
+
+
+第三章 使用MySQL
+连接需要主机名（本地为localhost），端口，用户名，密码
+(关键字大写，这样有助于阅读)
+
+可用的数据库列表
+SHOW DATABASES;
+
+用crashcourse数据库
+USE crashcourse;
+
+显示数据库内的可用的列表
+SHOW TABLES;
+
+显示表中的列的详细信息，对各个字段返回一行，行中包含字段名，数据类型，是否允许为NULL，键信息，默认值，其他信息（如auto_inrement）
+SHOW COLUMNS FROM customers;
+某些表列需要唯一值，比如订单号，而且自增，这样可以在CREATE表时包含该关键字
+
+SHOW COLUMNS的快捷方式
+DSCRIBE customers;
+
+其他SHOW
+SHOW STATUS，用于显示服务器状态信息
+SHOW CREATE DATABASE和SHOW CREATE TABLE，分别用来显示创建特定数据库或表的MySQL语句
+SHOW GRANTS,用来显示用户的安装权限
+SHOW ERRORS和SHOW WARNINGS，用来显示错误和警告信息
+
+HELP SHOW，显示允许的SHOW语句
+
+
+第四章 检索数据
+SELECT prod_name
+FROM products;
+从表中查询列，注意如果在不同的电脑上可能结果不同，因为如果没有明确查询结果，则返回的数据的顺序没有特殊意义，返回的数据可能是数据被添加到表中的顺序，也可能不是，只要返回相同数目的行，就是正常的
+多条SQL必须加分号，但单条有的可以不加，但事实上总是加上分号是没坏处的
+SQL不区分大小写，但是所有列和表明使用小写，所有关键字大写，这样易读
+处理SQL时，所有空格都会被忽略，所以可以一行也可以多行，多行容易阅读
+(例子中的所有SQL都是分行的，基本是以FROM等关键字分割的)
+
+检索多个列
+SELECT prod_id, prod_name, prod_price
+FROM products;
+SQL查询结果一般是无格式的数据，比如9，实际上是9块钱，但钱的符号不会存在数据库里，都是应用程序取出来再处理的
+
+显示所有列
+SELECT *
+FROM products;
+一般除非真的需要每个列，否则*会降低性能，通配符可以检索出名字未知的列
+
+检索不同的行
+SELECT DISTINCT vend_id
+FROM products;
+注意DISTINCT必须在列前面，只显示不同的行，去重，DISTINCT对所有列有限，而不仅是最前面的列，SELECT DISTINCT vend_id, prod_price;除非两列都不同，否则将显示所有行
+
+限制结果
+SELECT prod_name
+FROM products
+LIMIT 5;
+返回不多于5行，为了获取下一个5行，可指定开始行和行数
+SELECT prod_name
+FROM products
+LIMIT 5,5;
+注意：检索出来的第一行为行0而不是1，LIMIT 1,1结果是第二行
+行数不够时有多少返回多少
+LIMIT 4 OFFSET 3（易读）是从第三行起曲四行，等价于LIMIT 3,4
+
+使用完全限定的表名
+完全限定的名字来引用列，同时使用表名和列
+SELECT products.prod_name
+FROM products;
+
+SELECT products.prod_name
+FROM crashcourse.products;
+限定数据库的表
+这种写法在某些情形有用，后面会介绍
+
+
+第五章 排序检索数据
+检索出的结果一般和表中顺序一致，但更新或删除过，则顺序会受到影响
+SELECT prod_name
+FROM products
+ORDER BY prod_name;
+对prod_name列以字母顺序排序
+注：一般ORDER BY的列是显示所选择的列，但实际中用非检索的列排序是完全合法的
+
+按多个列排序
+检索3个列，按其中两个列对结果进行排序，首先按价格，再按名称排序
+SELECT prod_id, prod_price, prod_name
+FROM products
+ORDER BY prod_price, prod_name;
+如果多行具有相同的prod_price时，再按prod_name排序，如果prod_price没有重复的值，则不会按prod_name排，这点要注意
+
+指定排序方向
+降序DESC
+SELECT prod_id, prod_price, prod_name
+FROM products
+ORDER BY prod_price DESC;
+
+SELECT prod_id, prod_price, prod_name
+FROM products
+ORDER BY prod_price DESC, prod_name;
+这个语句只会对prod_price进行DESC，prod_name在每个相同的价格内还是按升序
+如果想在多列上降序排序，不许对每个列都指定DESC关键字
+ASC是升序，但是一般不用因为默认是升序
+如果要区分大小写排序，默认不区分大小写，ORDER BY语句做不到，只能改数据库配置
+
+ORDER BY与LIMIT组合找出最值
+SELECT prod_price
+FROM products
+ORDER BY prod_price DESC
+LIMIT 1
+返回最贵的
+注：OERDER BY子句必须位于FROM子句后面，LIMIT必须位于ORDER BY后面，否则结果有问题
+
+
+第六章 过滤数据
+WHERE子句
+WHERE可以指定搜索条件，WHERE子句在FROM之后
+SELECT prod_name, prod_price
+FROM products
+WHERE prod_price = 2.50;
+在同时用ORDER BY和WHERE时，ORDER BY位于WHERE之后（注：可以想，必须先知道顺序才能LIMIT，如果要知道顺序，必须知道排列的集合，要知道排列的集合，则必须知道筛选条件WHERE，而WHERE切都必须依赖于SELECT）
+
+WHERE子句
+=	等于
+<>	不等于
+!=	不等于
+<	>	<=	>=
+BETWEEN	在两个值之间
+
+SELECT prod_name, prod_price
+FROM products
+WHERE prod_name = 'fuses'
+不区分大小写，Fuses和fuses相同
+
+SELECT prod_name, prod_price
+FOMR products
+WHERE prod_price <= 10;
+搜索小于等于10块钱的物品
+
+SELECT vend_id, prod_name
+FROM products
+WHERE vend_id <> 1003;
+还可用!=
+列出不是供应商ID为1003制造的产品
+
+注：单引号用来限定字符串，如果将值与字符串比较，则需要限定单引号，用来与数字比较则不用
+
+SELECT prod_name, prod_price
+FOMR products
+WHERE prod_price BETWEEN 5 AND 10;
+注：匹配BETWEEN必须用AND，而且结果包括5和10
+
+SELECT prod_name
+FROM products
+WHERE prod_price IS NULL;
+空值查找
+查找电子邮件为空的客户
+SELECT cust_id
+FROM customers
+WHERE cust_email IS NULL;
+
+
+第七章 数据过滤
+AND操作符
+SELECT prod_id, prod_price, prod_name
+FROM products
+WHERE vend_id = 1003 AND prod_price <= 10;
+如果有多个条件则每多一个加一个AND
+
+OR操作符
+SELECT prod_id, prod_price, prod_name
+FROM products
+WHERE vend_id = 1002 OR vend_id = 1003;
+多一个条件加一个OR
+
+AND优先于OR
+SELECT prod_id, prod_price, prod_name
+FROM products
+WHERE vend_id = 1002 OR vend_id = 1003 AND prod_price >= 10;
+结果是返回vend_id为1002或1003并且大于等于10，即>=10只对1003起作用，因为AND的优先于OR
+圆括号可以解决优先级问题
+SELECT prod_id, prod_price, prod_name
+FROM products
+WHERE （vend_id = 1002 OR vend_id = 1003） AND prod_price >= 10;
+注：任何涉及优先级的时候都必须用圆括号，增加可读性
+
+IN操作符
+SELECT prod_name, prod_price
+FROM products
+WHERE vend_id IN (1002, 1003)
+ORDER BY prod_name;
+检索供应商ID为1002和1003的所有产品，IN后面跟由都喊分割的清单，整个清单都必须包括在圆括号中，IN和OR等价
+用IN不用OR因为：IN语法清楚，IN比OR更快，IN的最大优点是可以包含其他SELECT语句，后面会介绍
+
+NOT操作符
+SELECT prod_name, prod_price
+FROM products
+WHERE vend_id NOT IN (1002, 1003)
+ORDER BY prod_name;
+用来否定后面的操作符
+NOT支持对BETWEEN,IN,EXISTS否定
+
+
+第八章 用通配符进行过滤
+LIKE操作符
+%表示任何字符出现任意次数
+SELECT prod_id, prod_name
+FROM products
+WHERE prod_name LIKE'jet%';
+结果：
+prod_id prod_name
+JP100	JetPack 1000
+JP200	JetPack 2000
+jet之后任意字符，不管有多少，搜索可以区分大小写(配置MySQL)，若区分大写，jet%与JetPack 100将不匹配
+
+SELECT prod_id, prod_name
+FROM products
+WHERE prod_name LIKE'%anvi%';
+结果
+prod_id prod_name
+ANVO1	.5 ton anvil
+ANVO2	1 ton anvil
+%anvi%任何包含anvi的字符串而不管它前面和后面，通配符可以在任何位置使用任意次，也可以用在中间（一般不怎么会放在中间）
+注意： %通配符不能匹配NULL， WHERE prod_name LIKE '%'找不出NULL的行
+末尾空格会干扰通配符，如anvil尾部有一个空格，则WHERE prod_name LIKE '%anvi'匹配不到它们，解决办法是在后面加一个%，或者更好的方法用函数去掉首尾空格
+
+下划线通配符
+匹配任意单个字符，与%类似
+SELECT prod_id, prod_name
+FROM products
+WHERE prod_name LIKE'_ ton anvil';
+.5 ton anvil不会匹配到，因为_只匹配单个字符
+
+通配符使用技巧
+不要过度使用通配符，如果其他操作能达到目的，尽量用其他操作
+在确实需要用通配符时，除非绝对需要，否则不要把它们用在搜索的开始出，把通配符放在起始处会很慢
+注意通配符的位置，大部分应该是在首尾
+
+
+第九章 用正则表达式进行搜索
+基本字符匹配
+SELECT prod_id, prod_name
+FROM products
+WHERE prod_name REGEXP '1000'
+ORDER BY prod_name
+匹配包含1000的所有prod_name，注意与LIKE的区别，如果prod_name是JA 1000，正则表达式会返回，LIKE不会，因为LIKE是匹配整个列，LIKE ‘1000’只能匹配1000，不能匹配JA 1000，这是正则表达式和LIKE的一个重要区别
+默认正则表达式匹配不区分大小写，如果需要区分则用BINARY，如WHERE prod_name REGEXP BINARY 'JA .000'
+
+OR
+SELECT prod_id, prod_name
+FROM products
+WHERE prod_name REGEXP '1000|2000'
+ORDER BY prod_name
+两个以上就是1000|2000|3000
+
+匹配字符之一
+SELECT prod_id, prod_name
+FROM products
+WHERE prod_name REGEXP '[123] Ton'
+ORDER BY prod_name;
+[123]是匹配1或2或3，可匹配1 ton, 2 ton, 3 ton
+可以把[]理解成OR的另一种形式
+[123]Ton 等价于 [1|2|3]Ton,但是必须用[]
+SELECT prod_id, prod_name
+FROM products
+WHERE prod_name REGEXP '1|2|3 Ton'
+ORDER BY prod_name;
+匹配结果是
+1 ton anvil
+2 ton anvil
+JetPack 1000
+因为不加括号的意思是1或2或3 Ton，除非把|放在集合中，否则就是对整个字符串或
+[^123]匹配这些字符之外的任何东西
+
+匹配范围
+[12345]为了简化一般用-代表一个范围
+[0-9] [a-z]
+SELECT prod_name
+FROM products
+WHERE prod_name REGEXP '[1-5] Ton'
+ORDER BY prod_name
+结果：
+.5 ton anvil
+1 ton anvil
+...
+注意.5也可以匹配，因为正则表达式会匹配在其中的意思，而不是LIKE匹配整个，.5 ton anvil包含[1-5] Ton，
+不用写.[1-5] Ton*，MySQL中的正则表达式和正常语言中的稍有不同
+
+匹配特殊字符
+反斜杠，\,一个不行，需要两个\\,因为MySQL自己解释一个，另一个给正则表达式（其实Java也是这样）
+SELECT prod_name
+FROM products
+WHERE prod_name REGEXP '.'
+ORDER BY prod_name
+所有非空大于等于一个字符的都显示出来了，注意MySql正则的特殊，是包含关系，REGEXP后面的只要包含在结果里就能匹配
+SELECT prod_name
+FROM products
+WHERE prod_name REGEXP '\\.'
+ORDER BY prod_name
+有点的匹配到，必须用两个反斜杠
+特殊字符|,[]等都必须这样，如果匹配反斜杠则\\\
+\\n 换行
+\\t 制表
+\\r 回车
+'\r' 回车，回到当前行的行首，而不会换到下一行，如果接着输出的话，本行以前的内容会被逐一覆盖；
+'\n' 换行，换到当前位置的下一行，而不会回到行首
+
+[:alnum:]数字和字母，[:alpha:]任意字母
+还有很多其他的，用时可以查
+
+*	0或多个
++	1或多个
+?	0或1个
+{n}	匹配n次
+{n,}匹配不少于n次
+{n,m}匹配范围，m不超过255
+
+匹配多个实例
+SELECT prod_name
+FROM products
+WHERE prod_name REGEXP '\\([0-9] sticks?\\)'
+ORDER BY prod_name;
+结果：
+TNT (1 stick)
+TNT (5 sticks)
+\\匹配括号，转义，0-9匹配数字，?匹配0或1个字符
+
+SELECT prod_name
+FROM products
+WHERE prod_name REGEXP '[[:digit:]]{4}'
+ORDER BY prod_name;
+匹配连续4个数字，[:digit:]匹配单个数字，由于是集合，{4}匹配次数，所以[[:digit:]]{4}
+注意正则表达式通常有多种写法，上面还可以写成'[0-9][0-9][0-9][0-9]'
+(注解：如果比较高级的写法不会的话，就用清楚的写法，比如[0-9][0-9][0-9][0-9]，或[0-9]{4},[[]]双括号，可能比较不好想)
+
+定位符
+^	文本的开始
+$	文本的结尾
+[[:<:]]	词的开始
+[[:>:]]	词的结尾
+搜索小数点开始的数字，用[0-9\\.]不行，必须用^
+SELECT prod_name
+FROM products
+WHERE prod_name REGEXP '^[0-9\\.]'
+ORDER BY prod_name;
+搜索0-9或.开始的，而不是0-9接着. 因为[]表示一个集合
+
+注意^在集合中的意思是否定该集合，[^0-3],否则意思为字符串的开始处
+LIKE和REGEXP不同在于，LIKE匹配整个串二REGEXP匹配子串，利用定位符，通过用^开始每个表达式，用$结束每个表达式，可以使REGEXP的作用与LIKE一样
+用SELECT来测试正则表达式（不用数据库）
+SELECT 'hello' REGEXp '[0-9]'; 返回0，因为不匹配，如果匹配返回1，这个可以检查正则表达能不能用，先检查再用比较好
+
+
+第十章 创建计算字段
+数据库表中的数据一般不是想要的格式，比如，实际中想要公司名加逗号加公司ID，这时需要直接从数据中检索，然后转换
+字段基本上与列的意思一样，只不过表中称列，在计算中一般称字段
+很多转格式工作在Client也可以完成，不过一般都会让服务器完成，因为DBMS优化过，处理这些更快
+
+拼接字段
+concatenate，拼接，把值拼接到一起构成单个值
+
+SELECT Concat(vend_name, '(', vend_country, ')')
+FROM vendors
+ORDER BY vend_name;
+结果：
+Concat(vend_name, '(', vend_country, ')')
+ACME (USA)
+Jouets Et (France)
+注意：很多DBMS会用+或||实现拼接，Mysql则是用Concat()函数，这点要记住
+Concat()把多个串连接起来形成一个长串，Concat()需要一个或多个指定的串，用逗号分隔
+
+删除右侧多余空格
+SELECT Concat(RTrim(vend_name), '(', RTrim(vend_country), ')')
+FROM vendors
+ORDER BY vend_name;
+RTrim()函数去掉值右边的所有空格，还支持LTrim()清除左边的空格，Trim清楚左右的空格
+
+别名
+前面的例子中，Concat后的字段不好查询，可以起一个alias来替换，用关键字AS
+SELECT Concat(RTrim(vend_name), '(', RTrim(vend_country), ')') AS
+vend_titile
+FROM vendors
+ORDER BY vend_name;
+结果：
+vend_titile
+ACME (USA)
+Jouets Et (France)
+现在，列名为vend_title，可以按这个名字引用此列
+别名还有其他用途，包括对列表名含有不符合规定的字符，如空格，对其重命名，或在原来名字起的不好时重新扩充
+
+SELECT prod_id, quantity, item_price,
+	quantity*item_price AS expanded_price
+FROM orderitems
+WHERE order-num = 20005;
+检索结果计算(支持加减乘除)，新列命名，结果
+prod_id quantity item_price expanded_price
+...
+
+测试： SELECT 2*3；返回6
+SELECT Trim(' abc ');返回abc
+SELECT Now(); 返回当前时间
+用SELECT可以在不用数据库的情况下测试，防止错误，和上一章类似
+
+
+第十一章 使用数据处理函数
+SQL一般支持如下函数：
+处理文本，比如删除，大小写转换
+算数，比如加减乘除，绝对值
+日期时间，比如两日期之差
+DBMS信息，比如用户登录信息，版本信息
+
+文本处理函数
+Upper函数,转大写
+SELECT vend_name, Upper(vend_name) AS vend_name_upcase
+FROM vendors
+ORDER BY vend_name;
+结果
+vend_name 	vend_name_upcase
+...
+
+常用的文本处理函数
+Left()
