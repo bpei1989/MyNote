@@ -870,7 +870,7 @@ ORDER BY vend_id, prod_price;
 注：UNION可以极大简化复杂的WHERE子句
 
 
-第十八章 全文本搜索
+第十八章 全文本搜索（应该是只支持英文）
 使用全文本搜索时，MySQL不需要分别查看每行，MySQL创建指定列中各词的一个索引，搜索可以针对这些词进行
 必须索引被搜索的列才能用全文本搜索，而且要随着数据的改变不断重新索引，在对表进行适当设计后，MySQL会自动进行所有的索引和重新索引
 索引后，SELECT可与Match()和Against()一起执行搜索
@@ -887,3 +887,31 @@ CREATE TABLE productnotes
 ) ENGINE=MyISAM;
 FULLTEXT(note_text)，对note_text列进行索引，之后Mysql会在增加，更新，删除行是自动更新索引
 可以再创建表时索引，也可以稍后索引，不要再倒入数据时用FULLTEXT，最好在导入后再加，效率高些
+一般用于大量的查询，比如字段是一片文章
+
+SELECT note_text
+FROM productnotes
+WHERE Match(note_text) Against('rabbit');
+Match关键字对note_text列进行搜索，Against指定关机字rabbit
+注：传给Match()的值必须与FULLTEXT()中定义的相同，如果指定多个列，则必须按次序列出；除非用BINARY模式，否则不区分大小写
+可以用LIKE '%rabbit%'，但全文本搜索效率高，尤其是在文字很多时
+
+布尔全文本搜索
+SELECT note_text
+FROM productnotes
+WHERE Match(note_text) Against('rabbit -rope' IN BOOLEAN MODE);
+查找包含rabbit但不包含rope开始的词的行，布尔模式允许各种条件，不包含，通配符等（这块比较偏，用时查）
+
+
+第十九章 插入数据
+可以对每个表或每个用户，通过MySQL配置禁用INSERT语句，后面会介绍
+
+插入完整的行
+INSERT INTO Customers
+VALUES(NULL,
+	'Jim',
+	'14',
+	'USA',
+	NULL,
+	NULL,);
+	
