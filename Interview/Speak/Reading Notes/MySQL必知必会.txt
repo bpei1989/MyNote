@@ -443,4 +443,355 @@ vend_name 	vend_name_upcase
 ...
 
 常用的文本处理函数
-Left()
+Left()	返回串左边的字符
+Length()	返回串的长度
+Locate()	返回串的一个子串
+Lower()	返回串的小写形式
+LTrim()	去掉左边空格
+Right()	返回串右边的字符
+RTrim()	去掉串右边的空格
+Soundex()	返回串的Soundex模式，SOUNDEX(str)从str返回一个soundex字符串。两个字符串应该有几乎是相同的同音字符串
+SubString()	返回子串
+Upper()	转换为大写形式
+
+SELECT cust_name, cust_contact
+FROMｃｕｓｔｏｍｅｒｓ
+ＷＨＥＲＥ　Ｓｏｕｎｄｅｘ（ｃｕｓｔ_contact) = Soundex('Y Lie');
+结果
+cust_name cust_contact
+Coyote		Y Lee
+Lee不是Lie，但是发音类似，所以可以搜索，注意函数的用法，这些函数就像加减乘除一样，可以在任意地方使用
+
+日期和时间
+AddDate()	增加一个日期（天，周等），注意日期是2015-01-01，不是时间，10:11:01
+AddTime()	增加一个时间（时，分）
+CurDate()	返回当前日期
+CurTime()	返回当前时间
+Date()		返回日期时间的日期部分，比如2015-01-01 10:11:01返回2015-01-01
+DateDiff()	就是两个日期之差
+Date_Add()	日期运算函数
+Date_Format()	返回一个格式化的日期时间字符串
+Day()	返回一个日期的天数部分
+DayOfWeek()	传入一个日期，返回星期几
+Hour()	返回一个时间的小时部分
+Minute()	返回一个时间的分钟部分
+Month()	返回一个时间的月部分
+Now()	返回当前日期和时间
+Second()	返回一个时间的秒部分
+Time()	返回一个日期时间的的数据部分
+Year()	返回一个日期的年部分
+
+如果用日期则必须用四位数的年，虽然79,81可以被解析为1979等，但是不好
+SELECT cuts_id, order_num
+FROM orders
+WHERE order_date = '2005-09-01';
+其实这种写法不太好，如果订单是2005-09-01 11:09:01就匹配不到，所以不要这么写，之所以写在这是当反例的
+
+SELECT cuts_id, order_num
+FROM orders
+WHERE Date(order_date) = '2005-09-01';
+如果比较日期，用Date，这样拿出日期部分，忽略时间，可以直接用=比较，后面直接写成'xxxx-xx-xx'，即使数据库表的格式是datetime
+类似还有Time(order_date)
+
+SELECT cuts_id, order_num
+FROM orders
+WHERE Date(order_date) BETWEEN '2005-09-01' AND '2005-09-30';
+可用，但是不好，用下面的
+
+SELECT cuts_id, order_num
+FROM orders
+WHERE Year(order_date) = 2005 AND Month(order_date) = 9;
+注：要优先用函数来操作，而不是直接比较，取出时直接用函数操作后再进行比较
+
+数字处理函数
+Abs（）	返回绝对值
+Exp指数， Mod求余 Rand随机
+
+
+第十二章 汇总数据
+AVG 平均， COUNT 行数， MAX 最大值， MIN 最小， SUM 和，所有参数都是某列，注意函数的参数一般是列名，包括其他函数，文本处理，时间函数等
+
+SELECT AVG(prod_price) AS avg_price
+FROM products;
+返回所有产品的平均价格
+
+SELECT AVG(prod_price) AS avg_price
+FROM products
+WHERE vend_id = 1003;
+具体某个提供商的平均价格
+AVG()只能用于一个列的平均，列名为参数，如果需要获得多个列则需要多个AVG，AVG会忽略值是NULL的行
+
+SELECT COUNT(*) AS num_cust
+FROM customers;
+查询表中客户的总数
+
+SELECT COUNT(cust_email) AS num_cust
+FROM customers;
+有email的客户总数
+如果指定列名，则其中值为NULL的会忽略，如果COUNT(*)则不会忽略NULL,所以上面那个可以查所有用户个数，而下面这个只能查有email
+
+SELECT MAX(prod_price) AS max_price
+FROM products;
+最贵的产品，MAX通常用于查找数值和时间，但是也可以查找其他的，比如字符串，不过不常用，MAX会忽略NULL
+
+MIN与MAX用法一样，只不过意思相反
+
+SELECT SUM(quantity) AS items_ordered
+FROM orderitems
+WHERE order_num = 2005;
+返回订单号为2005的物品数量之和
+SUM可以进行数值计算，忽略NULL行
+SELECT SUM(item_price*quantity) AS total_price
+FROM orderitems
+WHERE order_num = 2005;
+注意这个把item_price和quantity都select出来了，然后做运算，SUM可以选择多行做运算
+
+SELECT AVG(DISTINCT prod_price) AS avg_price
+FROM products
+WHERE vend_id = 1003;
+只筛选不同的做平均，默认是ALL，所有的都算，不用写明
+DISTINCT只能用于具体行，不能用于*和运算，比如COUNT(DISTINCT *)不合法，必须COUNT(DISTINCT col_name)
+理论上可以用于MAX和MIN，不过没有意义
+
+组合
+SELECT COUNT(*) AS num_items,
+	MIN(prod_price) AS price_min,
+	MAX(prod_price) AS price_max,
+	AVG(prod_price) AS price_avg
+FROM products;
+结果
+num_items price_min price_max price_avg
+...
+这个例子用于把表的各种指数筛选出来，还用了各种函数，注意别名的用法，这种时候不要用原来的列名，因为会引起歧义，这就是别名的用处
+注：务必使用函数，这些SQL内置函数都是专业优化过的，效率高，易读，不出错
+
+
+第十三章 数据分组
+分组允许把数据分成多个组，以便对每个组进行计算
+SELECT vend_id, COUNT(*) AS num_prods
+FROM products
+GROUP BY vend_id
+结果
+vend_id	num_prods
+1001	3
+1002	2
+...
+可以理解为：对不同vend_id分别进行COUNT(*)，分组其实就是把函数精确化到以某个列作为区分，比如各国人口，就是country这个列进行GROUP BY，然后COUNT（num）
+注意GROUP BY会只是Mysql分组数据，然后对每个组使用函数，如COUNT，而不是对整个结果使用
+SELECT出vend_id才可能用GROUP BY，不能没SELECT vend_id而用GROUP BY vend_id，还有AS是针对一个的，如只针对COUNT(*),如果vend_id需要，则再加一个AS，vend_id AS xxx
+
+GROUP BY注意事项：
+1.GROUP BY子句可以包含任意数目的列，这就能对分组进行嵌套
+2.如果在GROUP BY子句中嵌套分组，数据会在最后规定的分组上汇总，建立分组时，指定的所有列都一起计算（没太明白，可以试试）
+3.GROUP BY子句中的每个列都必须是检索列（SELECT出来的）或有效表达式（不能是聚集函数，这个可以理解，因为如果是COUNT之类的函数，那就没法GROUP BY了，GROUP BY必须根据数据库中的表中的原始数据进行，而不是中间数据），如果SELECT用了表达式，则必须在GROUP BY子句中指定相同的表达式，不能使用别名（同样的原因，别名没在表的原始数据中，它只是个中间结果）
+4.除了聚集计算语句，SELECT语句中的每个列都必须在GROUP BY子句中给出
+5.如果分组有多个NULL，则NULL将作为一个分组返回（分组就是GROUP BY时某列具有相同值的行组成的一个组）
+6.GROUP BY子句必须出现在WHERE子句后面，ORDER BY子句前面（好理解，只有分好组才能排序）
+
+WITH ROLLUP可以得到每个分组的级别值（不太清楚，可以试试）
+SELECT vend_id, COUNT(*) AS num_prods
+FROM products
+GROUP BY vend_id WITH ROLLUP;
+
+过滤分组
+HAVING，与WHRER乐死，所有的WHERE子句都可以用HAVING代替，唯一的差别就是WHERE过滤行，HAVING过滤分组，所以GROUP BY的结果再进行限定，比如订单大于两个的用户，就用HAVING，而不能用WHERE
+SELECT cust_id, COUNT(*) AS orders
+FROM orders
+GROUP BY cust_id
+HAVING COUNT(*) > 2;
+对cust_id进行分组之后再进行COUNT(*)操作算出各个分组的订单数，之后再对分组的结果进行筛选，HAVING和WHERE唯一别是HAVING针对分组，如果这里用WHERE则不起作用，因为WHERE针对行
+
+HAVING和WHERE区别：WHERE在数据分组前进行过滤，HAVING在数据分组后进行过滤，WHERE排除的行不包括在分组中，HAVING子句基于WHERE排除后形成的分组进行过滤
+SELECT vend_id, COUNT(*) AS num_prods
+FROM products
+WHERE prod_price >= 10
+GROUP BY vend_id
+HAVING COUNT(*) >= 2;
+列出含有2个及以上，价格大于等于10的产品供应商，价格大于10显然是对于原始数据的，行，所以用WHERE，提供两个以上商品的则需要GROUP BY，GROUP BY vend_id,基于COUNT(*),正是因为基于COUNT(*)所以才能用HAVING COUNT(*) >= 2过滤
+如果不加WHERE过滤则全部原始数据都参加分组，WHERE针对原始数据过滤，HAVING基于分组（注：估计由于原始数据也是一种分组，即每个一组，所以HAVING可以代替WHERE）
+
+分组和排序
+GROUP BY和ORDER BY虽然有时能完成相同的工作，但是两者实际不同
+GROUP BY                                                             ORDER BY
+分组，单输出可能不是分组的顺序（可能不按序输出）                          按序
+只能用SELECT出的列或SELECT的表达式列（正则筛选的列）                     任意列，可以ORDER BY没SELECT的列，还可以是别名
+如果与聚集函数一起使用列，如COUNT(*)，则必须使用                         不一定用（可以理解为不关心是否使用了函数）
+可以理解为由于ORDER BY本身就是对中间数据排序，所以不关心原始数据
+使用GROUP BY时，同时要使用ORDER BY，保证顺序，GROUP BY不保证顺序（虽然一般按序，但是特殊情况不会，需要ORDER BY保障）
+
+SELECT order_num, SUM(quantity*item_price) AS ordertotal
+FROM orderitems
+GROUP BY order_num
+HAVING SUM(quantity*item_price) >= 50;
+
+SELECT order_num, SUM(quantity*item_price) AS ordertotal
+FROM orderitems
+GROUP BY order_num
+HAVING SUM(quantity*item_price) >= 50
+ORDER BY ordertotal;
+注：HAVING的筛选基本上一定是基于函数的，即SELECT的函数，GROUP BY 是基于SELECT里没有用函数的列，ORDER BY什么也不基于，随便哪一列都行，虽然如此但是还是最好基于SELECT里的列，可读性好的多
+
+子句顺序
+子句        说明                              是否必须使用
+SELECT      要返回的列或表达式                 是
+FROM        从中SELECT数据的表                 仅在需要从表中查询数据时
+WHERE       行级别过滤                         否
+GROUP BY    根据什么分组                       仅在按组计算时用
+HAVING      组级别过滤                         否
+ORDER BY    排序                               否
+LIMIT       限制检索的行数                      否
+
+
+第十四章 使用子查询
+利用子查询进行过滤
+跨表查询，即一个表的查询结果是另一个语句的数据范围，一个组合
+SELECT cust_id
+FROM orders
+WHERE order_num IN (SELECT order_num
+					FROM　orderitems
+					WHERE prod_id = 'TNT2');
+
+子查询总是从内向外处理，实际上执行了两个操作，首先查询子查询，返回结果以列表形式返回，这时外部变成IN(result from subSelect)
+
+SELECT cust_name, cust_contact
+FROM customers
+WHERE cust_id IN (SELECT cust_id
+				  FROM orders
+				  WHERE order_num IN (SELECT order_num
+				  					  FROM orderitems
+				  					  WHERE prod_id = 'TNT2'));
+检索订购TNT2的客户信息，基于客户ID，而客户ID由基于子查询
+注意：子查询可读性较差，适当的缩进换行可以提高可读性
+还有如果是多行的话，WHERE需要注意,WHERE子句中列数和子查询返回的列数相同才行，一对一
+一般子查询都用IN，也可以用=，<>等
+
+计算字段子查询
+从customers表中检索客户列表，对于检索出的每个客户，统计其在orders表中的订单数目
+SELECT cust_name,
+	   cust_state,
+	   (SELECT COUNT(*)
+	    FROM orders
+	    WHERE orders.cust_id = customers.cust_id) AS orders
+FROM customers
+ORDER BY cust_name;
+结果：
+cust_name cust_state orders
+...
+注意：子查询别名，子查询作为SELECT的一列，
+orders.cust_id = customers.cust_id的意思是比较两个表中的字段，如果不限定就默认在orders表中对比，自己和自己比，所以需要限定，很重要
+
+子查询的构建方式：用渐进测试来构建子查询，先建立和测试最内层的查询，然后用hard code数据建立和测试外城查询，并且再确认它正常工作后才嵌入子查询，在测试，这样做可以避免一下子写出来出了错，难以debug的情况
+
+
+第十五章 联结（join）表
+关系表
+两张表通过主键关联
+物品的信息和生产商的信息需要分别存在两张表里，因为如果放在一张表里的话，有大量重复，很多商品都是一个生产商提供的，在关系数据库里，大量的重复绝不是一件好事，若有大量重复，则必须把重复部分分成另一张表
+
+供应商和商品分别存在两张表里的坏处（反过来就是分表的好处）
+很多商品的供应商都是一样的，大量重复存储浪费空间
+如果供应商信息改变，需要改动地方太多
+大量重复数据有不一致的可能（人为的输错）
+
+vendors表存储供应商，每个供应商占一行，用ID表示（主键），products表只存储产品信息，它除了存储供应商ID（vendors表的主键）之外，不存储其他任何供应商的信息
+vendors的主键叫做products表的外键，它可以关联两个表，外键是表中的某一列，它包含另一个表的主键值，连接两张表，外键是个很重要的概念
+
+可伸缩性：能不断适应增加的工作量，关系数据库的适应性优于非关系数据库
+
+数据存在多个表中需要用联结来查询
+联结，用来在一条SELECT语句中关联表
+重要的是，需要理解联结不是物理实体，它在数据库表中不存在，它存在于查询执行当中
+为了防止非法数据，即products里的供应商在vendors里查不到的情况，用指定主键和外键实现（这就是维护引用完整性）
+
+创建联结
+SELECT vend_name, prod_name, prod_price
+FROM vendors, products
+WHERE vendors.vend_id = products.vend_id
+ORDER BY vend_name, prod_name;
+注：prod_name，prod_price（这两个在同一个表）和vend_name不在一个表中，FROM有两个表，就是联结的两个表，这两个表通过WHERE联结，其中需要指定表明，vendors.vend_id = products.vend_id，这点一定要注意
+联结实际上是将第一个表中的每一行与第二个表中的每一行对比，WHERE是行的过滤
+没有联结（WHERE）的结果是表1和表2的笛卡尔积，即第一个表中的行数乘以第二个表中的行数
+注意：不能忘记WHERE，否则结果就是笛卡尔积
+
+内部联结
+基于两个表之间的联结称内部联结或等值联结，可以用下面的语法
+INNER JOIN两张表，ON表示条件（和WHERE相同，推荐用这种语法，更清晰说明用了联结，有时还能提高效率）
+SELECT vend_name, prod_name, prod_price
+FROM vendors INNER JOIN products
+ON vendors.vend_id = products.vend_id;
+
+联结多张表（用AND）
+SELECT prod_name, vend_name, prod_price, quantity
+FROM orderitems, products, vendors
+WHERE products.vend_id = vendors.vend_id
+	AND orderitems.prod_id = products.prod_id
+	AND order_num = 20005;
+注意FROM和WHERE，WHERE中的表必须在FROM中。
+显示20005订单的商品，订单存在orderitems表中，这些商品通过供应商ID联结到vendors表中相应的供应商，最后一个条件是过滤订单号，WHERE不光是联结，还可以通过AND增加行过滤条件，比如AND order_num = 20005
+注：能不用联结多张表就不用，因为联结越多效率越低
+
+SELECT cust_name, cust_contact
+FROM customers
+WHERE cust_id IN (SELECT cust_id
+				  FROM orders
+				  WHERE order_num IN (SELECT order_num
+				  					  FROM orderitems
+				  					  WHERE prod_id = 'TNT2'));
+这个例子可以用联结
+SELECT cust_name, cust_contact
+FROM customers, orders, orderitems
+WHERE customers.cust_id = orders.cust_id
+	AND orderitems.order_num = orders.order_num
+	AND prod_id = 'TNT2';
+SELECT后面的行可以是包含在FROM表中的任何行，WHERE中的表也必须在FROM表里
+
+注：一般一个操作可以用不止一种方法实现，但是性能会有差异，所以有必要对各种机制实验，找到合适的方法
+
+
+第十六章 创建高级联结
+使用表别名
+除了可以给列起别名，还可以给表起别名，主要是因为：缩短SQL长度，允许单条SELECT语句中多次使用相同的表
+SELECT cust_name, cust_contact
+FROM customers AS c, orders AS o, orderitems AS oi
+WHERE c.cust_id = o.cust_id
+	AND oi.order_num = o.order_num
+	AND prod_id = 'TNT2';
+注意表别名不仅可以用于WHERE子句，还可以用于SELECT，ORDER BY等其他部分，表别名只在查询执行中时用，并不会显示在查询结果中，这与列别名不一样
+
+使用不同类型的联结
+自联结
+如果查到某生产商的DTNTR商品有问题，想查下该生产商的其他商品：
+SELECT prod_id, prod_name
+FROM products
+WHERE vend_id = (SELECT vend_id
+				 FROM products
+				 WHERE prod_id = 'DTNTR');
+注意IN往往是外面那个与内部中的SELECT一样，如vend_id = (SELECT vend_id，都是vend_di
+联结：
+SELECT p1.prod_id, p1.prod_name
+FROM products AS p1, products AS p2
+WHERE p1.vend_id = p2.vend_id
+	AND p2.prod_id = 'DTNTR';
+注意，表别名的使用，查询中需要的两个表其实是同一张表，FROM中出现了两次，虽然合法，但有歧义，所以要把该表和自己联结，查找（有些不容易理解，弄不清就用IN，正确优先）
+还有自联结的效率有时优于子查询，所以试一下两种方法，看哪个快
+
+自然联结
+自然联结是只能选择那些唯一的列，排除多次出现，每个列只显示一次
+一般通过SELECT *通配符对其他表的列使用明确的子集来完成
+SELECT c.*, o.order_num, o.order_date,
+		oi.prod_id, oi_quantity, OI.item_price
+FROM customers AS c, orders AS o, orderitems AS oi
+WHERE c.cust_id = o.cust_id
+	AND oi.order_num = o.order_num
+	AND prod_id = 'FB';
+这里通配符只对第一个表用，其他表用具体列（可以理解为自然联结就是普通联结，多个表，选择列，显示那些列）
+注：联结的基本语法：
+SELECT col1, col2, ...(来自不同的表)
+FROM table1， table2, ...
+WHERE table1.xxx=table2.xxx AND xxx AND xxx="";
+等价于
+SELECT col1 FROM　ｔａｂｌｅ１　ＷＨＥＲＥ　xxx IN(SELECT xxx FROM table2 WHERE xxx)
+
+
+
+
