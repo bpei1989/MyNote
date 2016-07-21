@@ -914,4 +914,392 @@ VALUES(NULL,
 	'USA',
 	NULL,
 	NULL,);
-	
+这样写虽然简单，可是容易出现行对应不对的问题，比如Jim和14本来应该是14，Jim,写反了，易错，可以用下面的写法
+INSERT INTO Customers（
+	cust_name,
+	cust_num,
+	cust_country,
+	cust_email,
+	cust_contact
+）VALUES(NULL,
+	'Jim',
+	'14',
+	'USA',
+	NULL,
+	NULL,);
+这种写法不容易出错，而且在列的顺序和表中顺序不一致时也不会出错
+不管是哪种写法，都必须提供与列数相等的value个数
+如果表允许省略列，则可以在insert时省略某列，但必须满足下面的某个条件： 该列允许为空或有默认值
+大量客户访问时，INSERT操作因为很耗时而且会降低SELECT语句的性能，特别是有很多索引需要更新时，如果数据检索是优先级高的（一般情况是这样），则可以通过INSERT LOW_PRIORITY INTO降低INSERT的优先级，这个对UPDATE和DELETE都适用
+
+插入多行
+多条INSERT语句，每条语句用一个分号结束，或用下面的语句(性能比多条的写法高)
+INSERT INTO customers(cust_name,
+	cust_address,
+	cust_state,
+)
+VALUES(
+	'abc',
+	'Main Street 1',
+	'USA',
+),
+(
+	'def'
+	'Big Road 2'
+	'England'
+);
+
+插入检索出的数据
+INSERT INTO customers(cust_id,
+	cust_address,
+	cust_state)
+SELECT id,
+	address,
+	state
+FROM custtable;
+注意，上下两个的列名不一定要一样，但数目一样
+
+
+第二十章 更新和删除数据
+UPDATE
+用UPDATE时务必要注意WHERE，否则容易更新所有行，可以限制UPDATE语句的使用（权限，后面会介绍）
+UPDATE三部分：要更新的表；列名和他们的新值；过滤条件
+UPDATE customers
+SET cust_email = 'elmer@fudd.com'
+WHERE cust_id = 10001;
+
+更新多个列，多个更新列之间用逗号隔开
+UPDATE customers
+SET cust_name = 'The Fudds',
+	cust_email = 'elmer@fudd.com'
+WHERE cust_id = 10001;
+UPDATE中可以使用子查询，用SELECT检索出需要更新的列，比如WHERE cust_id IN (SELECT xxx FROM yyy WHERE zzz)
+UPDATE更新多行时，如果这些行中出现错误，则整个UDPATE操作会被取消，回滚到原来的状态，如果需要即使发生错误也继续更新，则用UPDATE IGNORE...
+
+如果要删除某个列的值，可以设置为NULL（表必须允许该列为NULL）
+UPDATE customers
+SET cust_email = NULL
+WHERE cust_id = 10001;
+
+删除数据
+DELETE时需要注意WHERE，因为稍有不慎就会删掉所有行，DELETE也可以配置权限限制使用
+DELETE FROM customers
+WHERE cust_id = 10001;
+DELETE不需要列名和通配符，因为它是针对行的，不是这对列，如果需要删除列，可以用UPDATE
+注：DELETE仅用于删除行，但不可以删除表，如果需要删除表中所有行，可以使用TRUNCATE TABLE，删除原来表，并建一个新表
+
+UPDATE和DELETE规则：
+不要用不带WHERE的语句；
+保证每个表都有主键，便于WHERE筛选；
+使用前先用SELECT测试，看是不是想删或更新的行；
+使用强制实施引用完整性的数据库，MySQL将不允许删除具有与其他表相关联的数据行
+
+MySQL没有undo，如果删错或更新错就很麻烦了
+
+
+第二十一章 创建和操纵表
+创建表
+CREATE TABLE必须给出的信息： 新表的名字，列的名字和定义（用逗号分隔）
+CREATE TABLE customers
+(
+	cust_id  int   NOT NULL AUTO_INCREMENT,
+	cust_name  char(50)  NOT NULL,
+	cust_address char(50) NULL,
+	cust_email  char(50)  NULL,
+	PRIMARY KEY (cust_id)
+) ENGINE=InnoDB;
+注意主键的写法，还有创建表时的表明必须不存在，否则会出错，要防止意外覆盖已有的表，如果仅想在一个表不存在时创建它，则表名后给出IF NOT EXISTS
+
+使用NULL值
+允许NULL值得列也允许在插入行时不给出该列值，不允许NULL的列不接受该列没有值得行，即插入更新时必须有值
+空串''是可以在NOT NULL的列插入的
+
+主键
+CREATE TABLE customers
+(
+	cust_id  int   NOT NULL AUTO_INCREMENT,
+	cust_name  char(50)  NOT NULL,
+	cust_address char(50) NULL,
+	cust_email  char(50)  NULL,
+	PRIMARY KEY (cust_id， cust_email)
+) ENGINE=InnoDB;
+多个列组成主键，任何时候，cust_id和cust_email的组合是唯一的
+主键是唯一区别表中每个行的列，主键不允许NULL
+
+AUTO_INCREMENT
+自动增加，每次INSERT都会自动加一，每个表只允许一个AUTO_INCREMENT列，而且必须索引它，如把它定义为主键
+INSERT时可以指定AUTO_INCREMENT的值（只要这个值是在表中没出现过的），后面的新插入行会以这个值为基准自动增加
+可以用SELECT last_insert_id()查找最后一个AUTO_INCREMENT的列的值，last_insert_id()专门用于这个
+
+指定默认值DEFAULT
+CREATE TABLE orderitems
+(
+	order_num  int  NOT NULL,
+	order_item  int  NOT NULL,
+	prod_id  char(10)  NOT NULL,
+	quantity  int  NOT　NULL DEFAULT 1,
+	PRIMARY KEY (order_num, order_item)
+) ENGINE=InnoDB;
+Mysql不允许用函数做默认值，只允许常量
+用默认值，而不是NULL列，特别对于需要COUNT，GROUP BY的列更是如此
+
+引擎类型
+省略ENGING=，则用默认引擎，各种请求都是由引擎处理，MySQL支持多种引擎
+InnoDB，可靠地事务处理引擎，不支持全文本搜索
+MEMORY在功能等同于MyISAM，但数据存在内存，速度快，适合建立临时表用
+MyISAM，一个性能很高的引擎，支持全文本搜索，但不支持事物处理
+引擎类型可以混用，不同表用不同引擎，但外键不能跨引擎
+
+更新表
+ALTER TABLE： 之后要给出表名，所做更改的列
+ALTER TABLE vendors
+ADD vend_phone CHAR(20);
+
+ALTER TABLE vendors
+DROP COLUMN vend_phone;
+
+ALTER TABLE的一个常见用途是定义外键
+约束
+1.主键约束：
+格式为：
+alter table 表格名称 add constraint 约束名称 增加的约束类型 （列名）
+例子：
+alter table emp add constraint ppp primary key (id);
+
+2.check约束：就是给一列的数据进行了限制
+格式：
+alter table 表名称 add constraint 约束名称 增加的约束类型 （列名）
+例子：
+alter table emp add constraint xxx check(age>20);
+
+3.unique约束：这样的约束就是给列的数据追加的不重复的约束类型
+格式：
+alter table 表名 add constraint 约束名称 约束类型（列名）
+例子：
+alter table emp add constraint qwe unique(ename);
+
+外键约束：
+格式：
+alter table 表名 add constraint 约束名称 约束类型 (列名) references 被引用的表名称 （列名）
+例子：
+alter table emp add constraint jfkdsj foreign key (did) references dept (id);
+
+ALTER TABLE orderitems
+ADD CONSTRAINT fk_orderitems_orders
+FOREIGN KEY (order_num) REFERENCES orders (order_num);
+注：更改表要小心，最好先备份一个，数据库更改不能撤销
+
+删除表
+DROP TABLE customers2;
+
+重命名表
+RENAME TABLE customers2 TO customers;
+RENAME TABLE t1 TO table1,
+			t2 TO table2,
+			t3 TO table3;
+
+注： ALTER可以更改多个，只要以逗号隔开就行
+
+
+第二十二章 使用视图
+视图是虚拟的表，视图只包含使用时动态检索数据的查询
+SELECT cust_name, cust_contact
+FROM customers, orders, orderitems
+WHERE customers.cut_id = order.cust_id
+	AND orderitems.order_num = orders.order_num
+	AND prod_id = 'TNT2';
+把查询做成一个叫pc的虚拟表（pc是一个视图，它只是一个SQL查询），则可以
+SELECT cust_name, cust_contact
+FROM pc
+WHERE prod_id = 'TNT2';
+
+为什么用视图
+重用SQL语句；简化复杂的SQL操作；使用表的部分而不是整个表；保护数据（授予表特定部分的权限，而不是整个表的访问权限）；更改数据名字格式，视图可返回与底层不同名字格式的数据
+视图创建后，和表的用法基本一样
+视图本身不包含数据，它们返回的数据是从表中检索出来的，如果添加或改变这些表中的数据，则视图将返回改变过的数据；因为视图不包含数据，所以每次使用视图时，都必须处理查询执行时所需的所有SELECT，如果用了复杂的联结创建视图或嵌套视图会导致性能下降
+
+视图的规则：
+视图必须唯一命名，不能与其他视图和表名一样
+可以创建的视图数目没有限制
+足够的访问权限
+视图可以嵌套，可以用从其他视图中SELECT出来的数据来构造一个视图
+ORDER BY可以用在视图中，不过如果从视图检索数据SELECT语句也有ORDER BY，则会覆盖视图的ORDER BY
+视图不能索引，也不能有关联的触发器或默认值
+视图可以与表一起使用，SELECT xx, yy ROM table1， view;
+
+使用视图
+CREATE VIEW创建视图；
+SHOW CREATE VIEW viewname查看创建视图
+DROP VIEW 删除视图
+更新视图可以先DROP在CREATE，也可以CREATE OR REPLACE VIEW，这个语句会检查，如果不存在则新建，如果存在，则替换
+
+利用视图简化复杂的联结
+视图最常见的应用是隐藏复杂的SQL，而复杂的SQL一般都包括联结
+CREATE VIEW productcustomers AS
+SELECT cust_name, cust_contact, prod_id
+FROM customers, orders, orderitems
+WHERE custoemrs.cust_id = orders.cust_id
+	AND orderitems.order_num = orders.order_num;
+视图productcustomers联结了三个表，执行SELECT * FROM productcustomers WHERE prod_id = 'TNT2';更简单清晰
+视图可以简化SQL，而且可以对复杂的SQL一次编写，多次使用
+注：创建不受特定数据限制的视图是一种好办法，如上面创建的是所有产品的而不是TNT2的，这样可重用的范围更大，不需要维护太多视图
+
+用视图重新格式化检索出的数据
+如果经常需要使用某个格式，则可以这么写：
+CREATE VIEW vendorlocaitons AS
+SELECT Contact(RTrim(vend_name), '(', RTrim(vend_country), ')')
+	AS vend_title
+FROM vendors
+ORDER BY vend_name;
+之后就可以用: SELECT * FROM vendorlocaitons；
+
+用视图过滤不想要的数据
+视图对于普通WHERE也很有用，比如需要选出email不是NULL的
+CREATE VIEW customeremail AS
+SELECT cust_id, cust_name, cust_email
+FROM customers
+WHERE cust_email IS NOT NULL;
+就像使用表一样使用视图：SELECT * FROM customeremail;
+
+视图与计算字段
+CREATE VIEW orderitemsexpanded AS
+SELECT prod_id,
+	quantity,
+	item_price,
+	quantity*item_price AS expanded_price
+FROM orderitems;
+之后：SELECT * FROM orderitemsexpanded WHERE order_num = '10001';
+注：视图往往都是SELECT *，具体列在视图内部选出，外部只用WHERE,不过SELECT具体列也是可以的
+
+更新视图
+一般情况下，视图是可更新的，对视图可用INSERT，UPDATE，DELETE，更新一个视图将更新至表，如果对视图删除增加其实是对表操作
+但并非所有视图都是可更新的，如果MySQL不能确定更新的表中原始数据，则不允许更新，即如果视图中有以下操作，则不能更新视图：
+分组，GROUP BY或HAVING；联结；子查询；并；聚集函数（Min，Count，Sum等）；DISTINCT；计算列（不怎么用记，反正视图不用于修改，同时不要轻易改视图）
+其实这并不太限制使用，因为视图用于数据检索，而不用于数据更新
+一般应该把视图用于检索（SELECT）而不是更新（INSERT，UPDATE，DELETE）
+
+
+第二十三章 使用存储过程
+存储过程就是为以后使用而保存的一条或多条MySQl语句的集合，类似于批处理
+存储过程简单（封装后更易用），安全（减少处理错误的概率），性能高（比单独SQL要快，估计是MySQL对存储过程做过优化）
+
+MySQL执行存储过程的语句：CALL，其后需要有存储过程名字和参数，类似于函数
+CALL productpricing(@pricelow,
+					@pricehigh,
+					@priceaverage);
+
+创建存储过程
+注意：MySQL默认分隔符是;但是存储过程里需要;就和函数一样，会出错，必须这么写：
+DELIMITER //
+
+CREATE PROCEDURE productpricing()
+BEGING
+	SELECT Avg(prod_price) AS priceaverage
+	FROM products;
+END //
+
+DELIMITER ;
+DELIMITER修改默认分隔符，可以修改成任何字符，这里用的是//，END最后//表示结束，然后再改到;
+调用存储过程: CALL productpricing()
+
+删除存储过程
+DROP PROCEDURE productpricing()
+DROP PROCEDURE IF EXISTS productpricing()
+
+参数（注意写法）
+CREATE PROCEDURE productpricing(
+	OUT pl DECIMAL(8,2),
+	OUT ph DECIMAL(8,2),
+	OUT pa DECIMAL(8,2)
+)
+BEGING
+	SELECT Min(prod_price)
+	INTO pl
+	FROM products;
+	SELECT Max(prod_price)
+	INTO ph
+	FROM products;
+	SELECT Avg(prod_price)
+	INTO pa
+	FROM products;
+END;
+注意参数紧跟类型，前面参数类型的OUT是从存储过程传出（存储过程执行后，SELECT语句可直接用），IN是外面传给存储过程，INOUT是对存储过程传入传出（一般用于存储过程内，SELECT之后存到OUT的参数时），MySQL支持这三种参数类型
+注意没有大括号，由BEGING开始，END结束
+存储过程允许的参数类型和表中使用的一样，但记录集不允许，不可以用一个参数返回多个行或列，这就是这个例子用三个参数的原因
+CALL productpricing(@pricelow,
+					@pricehigh,
+					@priceaverage);
+执行后，不会显示任何东西，但这时可以用了
+SELECT @priceaverage;
+SELECT @pricelow,@pricehigh;
+注意：MySQL中的变量都以@开头
+
+IN和OUT参数
+CREATE PROCEDURE ordertotal(
+	IN onumber INT,
+	OUT ototal DECIMAL(8,2)
+)
+BEGING
+	SELECT Sum(item_price*quantity)
+	FROM orderitems
+	WHERE order_num = onumber
+	INTO ototal;
+END;
+--第一个为订单号，第二个为返回结果
+CALL ordertotal(10001, @total); 
+SELECT @total;
+
+智能存储过程（重要的例子，重点看）
+需要对某些顾客增加营业税：获得结果；把营业税根据条件添加到结果；返回结果
+存储过程如下：
+-- Name: ordertotal
+-- Parameters: onumber = order number
+-- 				taxable = 0 if not taxalbe, 1 if taxable
+--				ototal = order total variable
+
+CREATE PROCEDURE ordertotal(
+	IN onumber INT,
+	IN taxable BOOLEAN,
+	OUT ototal DECIMAL(8,2)
+) COMMENT 'Obtain order total, optionally adding tax'
+BEGING
+
+	-- Declare varibale for total
+	DECLARE total DECIMAL(8,2);
+	-- Declare tax percentage
+	DECLARE taxrate INT DEFAULT 6;
+
+	-- Get the order total
+	SELECT Sum(item_price*quantity)
+	FROM orderitems
+	WHERE order_num = onumber
+	INTO total;
+
+	IF taxable THEN
+		SELECT total+(total/100*taxrate) INTO total;
+	END IF;
+
+	-- And finally, save to out varialbe
+	SELECT total INTO ototal;
+
+END;
+CALL ordertotal(10001, 0, @total);
+SELECT @total;
+
+注释是--，
+DECLARE声明变量，声明出的变量和列一样可以SELECT等操作，
+COMMENT（非必须）关键字用于对存储过程说明，会在SHOW PROCEDURE STATUS中显示，
+BOOLEAN值，0,1表示，并非true/false
+IF THEN END IF关键字，
+存储过程里的赋值，全部用SELECT 原变量或处理后的原变量 INTO 目的变量，注意存储过程没有返回值，OUT类似返回值
+
+SHOW CREATE PROCEDURE ordertotal;
+显示创建一个存储过程的CREATE语句
+为获取谁创建，何时创建等详细信息用SHOW PROCEDURE STATUS，列出所有的，可用SHOW PROCEDURE STATUS LIKE 'ordertotal'过滤
+
+
+第二十四章 使用游标
+cursor，游标，是一个存在MySQl服务器上的数据库查询，它不是一条SELECT语句，而是被该语句检索出来的结果集，在存储了游标之后就可以根据需要取数据了，比如得到第一行，前10行等
+MySQL的游标只能用于存储过程
+
+
