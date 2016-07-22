@@ -1302,4 +1302,442 @@ SHOW CREATE PROCEDURE ordertotal;
 cursor，游标，是一个存在MySQl服务器上的数据库查询，它不是一条SELECT语句，而是被该语句检索出来的结果集，在存储了游标之后就可以根据需要取数据了，比如得到第一行，前10行等
 MySQL的游标只能用于存储过程
 
+游标使用规则：使用前必须声明；声明后必须打开；结束关闭游标
 
+创建游标()
+CREATE PROCEDURE processorders()
+BEGING
+	DECLARE ordernumbers CURSOR
+	FOR
+	SELECT order_num FROM orders;
+END;
+创建游标需要DECLARE cursorname CURSOR FOR SELECT 
+
+打开和关闭游标
+OPEN ordernumbers;
+CLOSE ordernumbers;
+END时会自动关闭游标，即使如此还是要显示调用为好
+
+游标数据
+FETCH关键字，FETCH cursorname INTO variable
+CREATE PROCEDURE processorders()
+BEGING
+	DECLARE o INT;
+
+	DECLARE ordernumbers CURSOR
+	FOR
+	SELECT order_num FROM orders;
+
+	OPEN ordernumbers;
+
+	FETCH ordernumbers INTO o;
+
+	CLOSE ordernumbers;
+END;
+
+循环检索至最后一行
+CREATE PROCEDURE processorders()
+BEGING
+	DECLARE o INT;
+
+	DECLARE ordernumbers CURSOR
+	FOR
+	SELECT order_num FROM orders;
+
+	--设置done为真的条件是，SQLSTATE 02000（未找到条件错误），即没有更多的行
+	DECLARE CONTIUE HANDLER　FOR SQLSTATE '02000' SET done=1;
+
+	OPEN ordernumbers;
+
+	REPEAT
+		FETCH ordernumbers INTO o;
+	UNITL done END REPEAT;
+
+	CLOSE ordernumbers;
+END;
+CONTIUE HANDLER是条件出现时被执行的代码，记住这么写就行，另外注意REPEAT UNTIL，END REPEAT语句
+DECLARE语句有顺序，局部变量必须声明在游标之前，而游标又必须在句柄之前
+
+实践
+CREATE PROCEDURE processorders()
+BEGING
+	-- Declare local variables
+	DECLARE done BOOLEAN DEFAULT 0;
+	DECLARE o INT;
+	DECLARE t DECIMAL(8,2);
+
+	-- Declare the cursor
+	DECLARE ordernumbers CURSOR
+	FOR
+	SELECT order_num FROM orders;
+
+	-- Decalre continue handler
+	DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' SET done=1;
+
+	-- Create a table to store the result
+	CREATE TABLE IF NOT EXISTS ordertotals
+		(order_num INT, total DECIMAL(8,2));
+
+	-- Open the cursor
+	OPEN ordernumbers;
+
+	-- Loop
+	REPEAT
+
+		-- Get the data and store it to variable
+		FETCH ordernumbers INTO o;
+
+		-- Get the total through procedure
+		CALL ordertotal(o, 1, t);
+
+		INSERT INTO ordertotals(order_num, total)
+		VALUES(o, t);
+
+	UNTIL done END REPEAT;
+
+	CLOSE ordernumbers
+
+END;
+使用存储过程中新建的表
+SELECT * FROM ordertotals；
+
+
+第二十五章 使用触发器
+触发器就是在DELETE，INSERT，UPDATE操作执行前后执行的操作，类似AOP（MySQL只支持这三个语句的触发器）
+
+创建触发器（CREATE TRIGGER）
+4个信息：
+唯一的触发器名（MySQL允许库中不唯一，表中唯一，但最好还是数据库范围内唯一）
+触发器关联的表
+触发器响应的活动，包括DELETE，INSERT，UPDATE
+执行时间，BEFORE或AFTER
+
+CREATE TRIGGER newproduct AFTER INSERT ON products
+FOR EACH ROW SELECT 'product added'；
+创建名为newproduct的触发器，在INSERT后执行，指定FOR EACH ROW，对每个插入都会显示product added
+
+如果BEFORE触发器失败，则MySQL不执行请求，如果BEFORE触发器失败，则MySQL也不会执行AFTER触发器
+
+删除触发器(触发器不能更新，只能先删除再新建)
+DROP TRIGGER newproduct;
+
+INSERT触发器
+在INSERT语句之前或之后，有几点需要注意：
+INSERT触发器带埋内，可引用一个名为NEW的虚拟表，访问被插入行（这个表由MySQl提供，不用创建和管理）；
+在BEFORE INSERT触发器中，NEW表的值可以被更新，允许更新被插入的值，在NEW表中更新后插入真正的表中；
+对于AUTO_INCREMENT列，NEW在INSERT执行之前包含0，在INSERT执行之后包含新的自动生成值
+例：
+CREATE TRIGGER neworder AFTER INSERT ON orders
+FOR EACH ROW SELECT NEW.order_num;
+每次插入后返回新的订单号，因为在之前还没有生成
+这时如果插入一行，则会显示订单号，由NEW表中查询到的
+INSERT INTO orders(order_date, cust_id)
+VALUES(Now(), 10001);
+结果：
+order_num
+200010
+订单号自动生成，可返回查看
+注：一般BEFORE用于数据验证，保证插入数据合法，UPDATE也适用，因为如果数据不合法，BEFORE触发器失败，则插入不会执行
+
+DELETE触发器
+DELETE触发器可以医用一个名为OLD的虚拟表，访问被删除的行；
+OLD中的值都是只读的
+例：
+CREATE TRIGGER deleteorder BEFORE DELETE ON orders
+FOR EACH ROW
+BEGING
+	INSERT INTO archive_orders(order_num, order_date, cust_id)
+	VALUES(OLD.order_num, OLD,order_date, OLD.cust_id);
+END;
+删除订单前执行此触发器，触发器用INSERT把OLD中，即要删除的订单，保存到一个表中
+这种触发器的有的是由于某种原因订单不能存档，DELETE不会执行，BEGING END可以不用，但用了没坏处，可以写多行
+
+UPDATE触发器
+可以引用OLD虚拟表访问UPDATE之前的值，还可以引用NEW虚拟表访问新的值；
+在BEFORE UPDATE触发器中，NEW中的值可能被更新
+OLD中的值只读
+例：保证州名都是大写，不管UPDATE给出的是大写还是小写
+CREATE TRIGGER updateevendor BEFORE UPDATE on vendors
+FOR EACH ROW SET NEW.vend_state = Upper(NEW.vend_state);
+NEW表的值更新后再插入数据库中的表里，NEW表可以理解为一个插入前的缓存，在这个缓存里改数据可以直接生效
+
+
+第二十六章 管理事务处理
+InnoDB支持管理事务，MyISAM不支持，这点要注意
+事务处理(transaction processing)，用于维护数据库完整性，保证成批的MySQL操作要么完全执行，要么全部不执行
+比如生成订单需要好几个步骤，其中一步出错可能生成不完整订单，这时就需要事务管理，要么生成完整订单，要么不生成
+
+事务的术语：
+事务(transaction)，一组SQL语句；
+回退(rollback)，撤销指定SQL语句
+提交(commit),未存储的SQL语句结果写入数据库
+保留点(savepoint)，临时占位符，可以发布回退
+
+事务处理
+-- 表示事务开始
+START TRANSACTION
+
+-- ROLLBACK
+SELECT * FROM ordertotals;
+START TRANSACTION;
+DELETE FROM ordertotoals;
+SELECT * FROM ordertotoals;
+ROLLBACK;
+SELECT * FROM ordertotoals;
+首先start事务，再把ordertotoals表的所有行删除，然后检查是不是所有行都删除了，之后rollback，最后检查rollback结果
+ROLLBACK只能回退INSERT，UPDATE，DELETE，不能回退DROP和CREATE
+
+-- COMMIT
+一般SQL语句会默认commit，隐含提交，但是事务中不会，必须调用COMMIT才会提交到server执行
+START TRANSACTION;
+DELETE FROM ordertotoals WHERE order_num = 1000；
+DELETE FROM ordertotoals WHERE order_num = 2000；
+COMMIT；
+注：COMMIT和ROLLBACK执行后，事务会自动关闭
+
+-- 保留点
+部分提交或回退，必须在事务处理中布置占位符，如果需要回退则可以退到某占位符，占位符的名字必须唯一
+创建占位符：SAVEPOINT
+SELECT * FROM ordertotals;
+START TRANSACTION;
+DELETE FROM ordertotoals WHERE order_num = 1000；
+SAVEPOINT delete1；
+DELETE FROM ordertotoals WHERE order_num = 2000；
+SELECT * FROM ordertotoals;
+ROLLBACK TO delete1;
+SELECT * FROM ordertotoals;
+注：保留点（就是占位符）会在事务处理完后自动释放，也可用RELEASE SAVEPOINT释放
+
+可以用SET autocommit=0;禁止自动提交
+
+
+第二十七章 本地化
+字符集和校对顺序
+字符集：字母和符号的集合
+编码：字符集成员的内部表示
+校对：字符如何比较的指令(是否区分大小写之类)
+
+--查看可用字符集
+SHOW CHARACOTER SET；
+
+--查看校对
+SHOW COLLATION;
+
+-- 查找所用字符集和校对
+SHOW VARAIBLES LILE 'character%';
+SHOW VARIABLES LIKE 'collation%';
+
+字符集很少是服务器范围，不同的表，不同的列都可能有不同的字符集，在创建表时可以指定
+CREATE TABLE mytalbe
+(
+	column1 INT,
+	column2 VARCHAR(8)
+) DEFAULT CHARACTER SET hebrew
+  COLLATE hebrew_general_ci;
+如果指定CHARACTER SET和COLLATE则用指定的，如果仅指定CHARACTER SET则用该字符集默认的校对，如果两个都没指定则用数据默认的
+注：最多指定字符集，校对用默认的就行，一般不怎么用特殊的校对
+
+-- 为每个列设置字符集
+CREATE TABLE mytalbe
+(
+	column1 INT,
+	column2 VARCHAR(8)，
+	column3 VARCHAR(8) CHARACTER SET latin COLLATE lantin_general_ci
+) DEFAULT CHARACTER SET hebrew
+  COLLATE hebrew_general_ci;
+列column3用拉丁，其他默认
+
+还可以对列临时规定校验
+SELECT * FROM customers
+ORDER BY lastname, firstname COLLATE latin_general_cs;
+对firstname临时规定校验，区分大小写
+
+
+第二十八章 安全管理
+管理用户
+USE mysql;
+SELECT user FROM user;
+mysql有默认表user，存着所有账号
+
+-- 创建用户账号
+CREATE UEER ben INDENTIFIED BY 'p@$$v0rd';
+新建用户ben，密码为p@$$v0rd
+GRANT可以创建新用户，但是一般CREATE USER最清楚，还可以直接INSERT用户到user表，但一般不这么做
+
+-- 重命名用户
+RENAME USER ben to bforta;
+
+-- 删除用户
+DROP USER bforta；
+
+设置访问权限
+-- 显示用户权限
+SHOW GRANTS FOR bforta;
+
+--设置用户权限
+需要以下信息：
+要授予的权限，比如SELECT，DELETE，UPDATE，EXEUCTE（存储过程）等；
+访问的数据库或表；
+用户名
+GRANT SELECT ON crashcourse.* TO bforta;
+授予bforta用户在crashcourse.*(该数据库的所有表)用SELECT的权限（仅有访问权限）
+
+-- REVOKE撤销权限
+REVOKE SELECT ON crashcourse.*  FROM bforta;
+
+GRANT REVOKE层次：
+整个服务器，用GRANT ALL 和 REVOKE ALL；
+整个数据库， ON database.*；
+表， ON database.table；
+特定列；
+特定存储过程
+（具体权限可以查询，很多，不用都记住）
+GRANT和INVOKE用户必须存在，但数据库和表不用，可以创建数据库和表之前规定好权限，但这样做会有副作用，当数据库或表被删除时（DROP）相关的访问权限还在，而且如果重新创建该表或数据库，则之前的权限依然起作用
+可以逗号分隔把多条GRANT合并：GRANT SELECT，INSERT ON crashcourse* TO bforta;
+
+重设其他用于的密码：SET PASSWORD FOR bforta = Password('newpasswd');
+还可以重设自己的密码：SET PASSWORD = Password('newpasswd');
+
+
+第二十九章 数据库维护
+备份数据
+mysqldump命令吧数据内容存到某个外部文件
+mysqlhotcopy命令从一个数据库赋值全部数据，有的引擎不支持
+BACKUP TABLE或SELECT INTO OUTFILE转存到外部文件
+注： 在备份前可能要用FLUSH TABLES命令可以保证所有数据被写出，包括索引
+
+数据库维护
+ANALYZE TABLE检查表键是否正确
+CHECK TABLE检查表状态
+
+诊断
+mysql --help 帮助
+mysql --version 版本
+mysql --verbose显示全文本信息
+
+查看日志
+错误日志，名为hostname.err，位于data目录， --log-error选项查询
+普通日志，名为hostname.log，位于data目录， --log选项查询
+二进制日志，名为hostname-bin，；位于data目录，--log-bin
+缓慢日志，包含执行缓慢的查询，hostname-slow.log,位于data目录，--log-slow-queries
+
+
+第三十章 改善性能
+总有不止一种方法编写SQL语句，实验联结，并，子查询，看哪个好一些
+一般存储过程比SQL执行快
+使用正确的数据类型
+不要检索不需要的列，少用SELECT *
+导入数据时，关闭自动提交，导入后再打开，还有删除索引，导入后再重建
+用UNION代替OR
+索引改善查询性能，但损害插入删除更新的性能，根据表的需要设置索引
+LIKE很慢，一般用FULLTEXT而不是LIKE
+
+
+增加章节： 索引（这本书没有索引的章节）
+执行下面的SQL语句：
+1
+mysql> SELECT id,FROM_UNIXTIME(time) FROM article WHERE a.title='测试标题'
+查询需要的时间非常恐怖的，如果加上联合查询和其他一些约束条件，数据库会疯狂的消耗内存，并且会影响前端程序的执行。这时给title字段添加一个BTREE索引：
+1
+mysql> ALTER TABLE article ADD INDEX index_article_title ON title(200);
+再次执行上述查询语句，其对比非常明显：
+
+MySQL索引的概念
+索引是一种特殊的文件(InnoDB数据表上的索引是表空间的一个组成部分)，它们包含着对数据表里所有记录的引用指针。更通俗的说，数据库索引好比是一本书前面的目录，能加快数据库的查询速度。上述SQL语句，在没有索引的情况下，数据库会遍历全部200条数据后选择符合条件的；而有了相应的索引之后，数据库会直接在索引中查找符合条件的选项。（注：一般数据库默认都会为主键生成索引）。
+索引分为聚簇索引和非聚簇索引两种，聚簇索引是按照数据存放的物理位置为顺序的，而非聚簇索引就不一样了；聚簇索引能提高多行检索的速度，而非聚簇索引对于单行的检索很快。
+MySQL索引的类型
+1. 普通索引
+这是最基本的索引，它没有任何限制，比如上文中为title字段创建的索引就是一个普通索引，MyIASM中默认的BTREE类型的索引，也是我们大多数情况下用到的索引。
+
+–直接创建索引
+CREATE INDEX index_name ON table(column(length))
+
+–修改表结构的方式添加索引
+ALTER TABLE table_name ADD INDEX index_name ON (column(length))
+
+–创建表的时候同时创建索引
+CREATE TABLE `table` (
+`id` int(11) NOT NULL AUTO_INCREMENT ,
+`title` char(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL ,
+`content` text CHARACTER SET utf8 COLLATE utf8_general_ci NULL ,
+`time` int(10) NULL DEFAULT NULL ,
+PRIMARY KEY (`id`),
+INDEX index_name (title(length))
+)
+
+–删除索引
+DROP INDEX index_name ON table
+
+2. 唯一索引
+与普通索引类似，不同的就是：索引列的值必须唯一，但允许有空值（注意和主键不同）。如果是组合索引，则列值的组合必须唯一，创建方法和普通索引类似。
+
+–创建唯一索引
+CREATE UNIQUE INDEX indexName ON table(column(length))
+–修改表结构
+ALTER TABLE table_name ADD UNIQUE indexName ON (column(length))
+–创建表的时候直接指定
+CREATE TABLE `table` (
+`id` int(11) NOT NULL AUTO_INCREMENT ,
+`title` char(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL ,
+`content` text CHARACTER SET utf8 COLLATE utf8_general_ci NULL ,
+`time` int(10) NULL DEFAULT NULL ,
+PRIMARY KEY (`id`),
+UNIQUE indexName (title(length))
+);
+
+3. 全文索引（FULLTEXT）
+MySQL从3.23.23版开始支持全文索引和全文检索，FULLTEXT索引仅可用于 MyISAM 表；他们可以从CHAR、VARCHAR或TEXT列中作为CREATE TABLE语句的一部分被创建，或是随后使用ALTER TABLE 或CREATE INDEX被添加。////对于较大的数据集，将你的资料输入一个没有FULLTEXT索引的表中，然后创建索引，其速度比把资料输入现有FULLTEXT索引的速度更为快。不过切记对于大容量的数据表，生成全文索引是一个非常消耗时间非常消耗硬盘空间的做法。
+
+–创建表的适合添加全文索引
+CREATE TABLE `table` (
+`id` int(11) NOT NULL AUTO_INCREMENT ,
+`title` char(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL ,
+`content` text CHARACTER SET utf8 COLLATE utf8_general_ci NULL ,
+`time` int(10) NULL DEFAULT NULL ,
+PRIMARY KEY (`id`),
+FULLTEXT (content)
+);
+
+–修改表结构添加全文索引
+ALTER TABLE article ADD FULLTEXT index_content(content)
+
+–直接创建索引
+CREATE FULLTEXT INDEX index_content ON article(content)
+
+4. 单列索引、多列索引
+多个单列索引与单个多列索引的查询效果不同，因为执行查询时，MySQL只能使用一个索引，会从多个索引中选择一个限制最为严格的索引。
+
+5. 组合索引（最左前缀）
+平时用的SQL查询语句一般都有比较多的限制条件，所以为了进一步榨取MySQL的效率，就要考虑建立组合索引。例如上表中针对title和time建立一个组合索引：ALTER TABLE article ADD INDEX index_titme_time (title(50),time(10))。建立这样的组合索引，其实是相当于分别建立了下面两组组合索引：
+–title,time
+–title
+为什么没有time这样的组合索引呢？这是因为MySQL组合索引“最左前缀”的结果。简单的理解就是只从最左面的开始组合。并不是只要包含这两列的查询都会用到该组合索引，如下面的几个SQL所示：
+–使用到上面的索引
+SELECT * FROM article WHREE title='测试' AND time=1234567890;
+SELECT * FROM article WHREE utitle='测试';
+
+–不使用上面的索引
+SELECT * FROM article WHREE time=1234567890;
+
+MySQL索引的优化
+上面都在说使用索引的好处，但过多的使用索引将会造成滥用。因此索引也会有它的缺点：虽然索引大大提高了查询速度，同时却会降低更新表的速度，如对表进行INSERT、UPDATE和DELETE。因为更新表时，MySQL不仅要保存数据，还要保存一下索引文件。建立索引会占用磁盘空间的索引文件。一般情况这个问题不太严重，但如果你在一个大表上创建了多种组合索引，索引文件的会膨胀很快。索引只是提高效率的一个因素，如果你的MySQL有大数据量的表，就需要花时间研究建立最优秀的索引，或优化查询语句。
+
+索引不会包含有NULL值的列
+只要列中包含有NULL值都将不会被包含在索引中，复合索引中只要有一列含有NULL值，那么这一列对于此复合索引就是无效的。所以我们在数据库设计时不要让字段的默认值为NULL。
+
+使用短索引
+对串列进行索引，如果可能应该指定一个前缀长度。例如，如果有一个CHAR(255)的列，如果在前10个或20个字符内，多数值是惟一的，那么就不要对整个列进行索引。短索引不仅可以提高查询速度而且可以节省磁盘空间和I/O操作。
+
+索引列排序
+MySQL查询只使用一个索引，因此如果where子句中已经使用了索引的话，那么order by中的列是不会使用索引的。因此数据库默认排序可以符合要求的情况下不要使用排序操作；尽量不要包含多个列的排序，如果需要最好给这些列创建复合索引。
+
+like语句操作
+一般情况下不鼓励使用like操作，如果非使用不可，如何使用也是一个问题。like “%aaa%” 不会使用索引而like “aaa%”可以使用索引,最左匹配。
+
+不要在列上进行运算
+例如：select * from users where YEAR(adddate)<2007，将在每个行上进行运算，这将导致索引失效而进行全表扫描，因此我们可以改成：select * from users where adddate<’2007-01-01′
+
+最后总结一下，MySQL只对一下操作符才使用索引：<,<=,=,>,>=,between,in,以及某些时候的like(不以通配符%或_开头的情形)。而理论上每张表里面最多可创建16个索引，实际中，一般不要创建过多索引
+
+
+---------------------------------------------The END----------------------------------------------
