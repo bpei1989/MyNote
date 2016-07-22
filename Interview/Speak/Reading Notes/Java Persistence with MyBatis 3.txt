@@ -1,0 +1,26 @@
+第一章 MyBatis入门
+1.1 Mybatis是什么
+MyBatis是一个简化和实现了java数据持久化层的开源框架，它抽象了大量的JDBC冗余代码，并提供了一个简单易用的API和数据库交互
+MyBatis通过抽象底层的JDBC代码，自动化SQL结果集产生Java对象，Java对象的数据持久化数据库过程使得对SQL的使用变得容易
+
+1.2 为什么选择MyBatis
+1.2.1 消除冗余
+JDBC操作有大量重复代码，创建联结，创建Statement对象，设置输入参数，释放资源
+MyBatis简化了上述任务，如准备需要执行的SQL statement对象并将Java对象作为输入数据传递给statement对象的任务，开发人员可以专注于逻辑
+下面的例子展示了MyBatis是如何实现这些的
+1. 在SQL Mapper映射配置文件中配置SQL语句
+StudentMapper.xml
+
+表
+CREATE TABLE STUDENTS
+(
+	stud_id int(11) NOT NULL AUTO_INCREMENT,
+	name varchar(50) NOT NULL,
+	email varchar(50) NOT NULL,
+	dob date DEFAULT NULL,
+	PRIMARY KEY (stud_id)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=gbk;
+INSERT INTO students(stud_id, name, email, dob)
+values (1, 'Student1', 'student1@gmail.com', '1983-06-25');
+INSERT INTO students(stud_id, name, email, dob)
+values (2, 'Student2', 'student2@gmail.com', '1983-06-25');
