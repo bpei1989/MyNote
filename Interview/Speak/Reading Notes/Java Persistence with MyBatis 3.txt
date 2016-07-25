@@ -4,14 +4,10 @@ MyBatis是一个简化和实现了java数据持久化层的开源框架，它抽
 MyBatis通过抽象底层的JDBC代码，自动化SQL结果集产生Java对象，Java对象的数据持久化数据库过程使得对SQL的使用变得容易
 
 1.2 为什么选择MyBatis
-1.2.1 消除冗余
 JDBC操作有大量重复代码，创建联结，创建Statement对象，设置输入参数，释放资源
 MyBatis简化了上述任务，如准备需要执行的SQL statement对象并将Java对象作为输入数据传递给statement对象的任务，开发人员可以专注于逻辑
-下面的例子展示了MyBatis是如何实现这些的
-1. 在SQL Mapper映射配置文件中配置SQL语句
-StudentMapper.xml
 
-表
+(1)表
 CREATE TABLE STUDENTS
 (
 	stud_id int(11) NOT NULL AUTO_INCREMENT,
@@ -24,3 +20,223 @@ INSERT INTO students(stud_id, name, email, dob)
 values (1, 'Student1', 'student1@gmail.com', '1983-06-25');
 INSERT INTO students(stud_id, name, email, dob)
 values (2, 'Student2', 'student2@gmail.com', '1983-06-25');
+
+(2)pom
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>3.8.1</version>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+  	  <groupId>org.mybatis</groupId>
+  	  <artifactId>mybatis</artifactId>
+  	  <version>3.2.2</version>
+  	</dependency>
+  	
+  	<dependency>
+  	  <groupId>mysql</groupId>
+  	  <artifactId>mysql-connector-java</artifactId>
+  	  <version>5.1.22</version>
+  	  <scope>runtime</scope>
+  	</dependency>
+  	
+  	<dependency>
+  	   <groupId>org.slf4j</groupId>
+  	   <artifactId>slf4j-api</artifactId>
+  	   <version>1.7.5</version>
+  	</dependency>
+
+  	<dependency>
+  	   <groupId>org.slf4j</groupId>
+  	   <artifactId>slf4j-log4j12</artifactId>
+  	   <version>1.7.5</version>
+  	   <scope>runtime</scope>
+  	</dependency>
+  	
+  	<dependency>
+  	   <groupId>log4j</groupId>
+  	   <artifactId>log4j</artifactId>
+  	   <version>1.2.17</version>
+  	   <scope>runtime</scope>
+  	</dependency>
+  </dependencies>  
+
+(3)Log配置（文件路径放到classpath里）
+log4j.rootLogger=DEBUG, stdout
+log4j.appender.stdout=org.apache.log4j.ConsoleAppender
+log4j.appender.stdout.layout=org.apache.log4j.patternLayout
+log4j.appender.stdout.layout.ConversionPattern=%d [%-5p] %c - %m%n
+
+(4)mybatis-config.xml和映射器StudentMapper.xml配置文件
+mybatis-config.xml(数据库连接信息，类别名等，加到classpath中)
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+  <typeAliases>
+    <typeAlias alias="Student" type="com.mybatis3.domain.Student" />
+  </typeAliases>
+  <environments default="development">
+    <environment id="development">
+      <transactionManager type="JDBC" />
+      <dataSource type="POOLED">
+        <property name="driver" value="com.mysql.jdbc.Driver" />
+        <property name="url" value="jdbc:mysql://localhost:3360/test />
+        <property name="username" value="root" />
+        <property name="password" value="admin" />
+      </dataSource>
+    </environment>
+  </environments>
+  <mappers>
+    <mapper resource="com/mybatis3/mappers/StudentMapper.xml" />
+  </mapper>
+</configuration>
+
+StudentMapper.xml(放到com.mybatis3.mapper包中)
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<mapper namespace="com.mybatis3.mappers.StudentMapper">
+  <resultMap type="Student" id="StudentResult">
+    <id property="studId" column="stud_id" />
+    <result property="name" column="name" />
+    <result property="email" column="email" />
+    <result proerty="dob" column="dob" />
+  </resultMap>
+  <select id="findAllStudents" resultMap="StudentResult">
+    SELECT * FROM STUDENTS
+  </select>
+  <insert id="insertStudent" parameterType="Student">
+    INSERT INTO STUDENT(STUD_ID,NAME,EMAIL,DOB)
+        VALUES(#{studId},#{name},#{email},#{dob})
+  </insert>
+</mapper>
+
+(5) 创建MyBatisSqlSessionFactory单例类（实例化，使它持有一个SqlSessionFactory对象,可获取SqlSession对象和执行映射Sql语句）
+package com.mybatis3.util;
+import java.io.*;
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.*;
+public class MyBatisSqlSessionFactory
+{
+	private static SqlSessionFactory sqlSessionFactory;
+	public static SqlSessionFactory getSqlSessionFactory() {
+		if(sqlSessionFactory == null) {
+			InputStream inputStream;
+			try {
+				InputStream = Resources.getResourcesAsStream("mybatis-config.xml");
+				sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+			} catch (IOException e) {
+				throw new RuntimeException(e.getCause());
+			}
+		}
+		return sqlSessionFactory;
+	}
+
+	public static SqlSession openSession() {
+		return getSqlSessionFactory().openSession();
+	}
+}
+
+（6） 创建StudentMapper接口和StudentService类
+StudentMapper接口，定义的属性名和在MapperXML中定义的SQL映射语句名称相同
+package com.mybatis3.util;
+import java.util.Date;
+public class Student {
+	private Integer studId;
+	private String name;
+	private String email;
+	private Date dob;
+	// setter & getter
+	/*和下面的名称相同
+  <resultMap type="Student" id="StudentResult">
+    <id property="studId" column="stud_id" />
+    <result property="name" column="name" />
+    <result property="email" column="email" />
+    <result proerty="dob" column="dob" />
+  </resultMap>
+	*/
+}
+
+创建Mapper接口和StudentMapper.java其方法和StudentMapper.xml中的名称相同
+package com.mybatis3.mappers;
+import java.util.List;
+import com.mybatis3.domain.Student;
+public interface StudentMapper {
+	List<Student> findAllStudents();
+	Student finStudentById(Integer id);
+	void insertStudent(Student student);
+/*
+  <select id="findAllStudents" resultMap="StudentResult">
+    SELECT * FROM STUDENTS
+  </select>
+  <insert id="insertStudent" parameterType="Student">
+    INSERT INTO STUDENT(STUD_ID,NAME,EMAIL,DOB)
+        VALUES(#{studId},#{name},#{email},#{dob})
+  </insert>
+ */
+}
+
+StudentService.java对表STUDENTS操作
+package com.mybatis3.services;
+import java.util.List;
+import org.apache.ibatis.session.SqlSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.mybatis3.domain.Student;
+import com.mybatis3.mapper.StudentMapper;
+import com.mybatis3.util.MyBatisSqlSessionFactory;
+public class StudentService {
+	private Logger logger = LoggerFactory.getLogger(getClass());
+	public List<Student> findAllStudents() {
+		SqlSession sqlSession = MyBatisSqlSessionFactory.openSession();
+		try {
+			StudentMapper studentMapper = sqlSession.getMapper(StudentMapper.class);
+			return studentMapper.findAllStudents();
+		} finally {
+			sqlSession.close(); //必须close，否则session不会释放
+		}
+	}
+
+	public Student findStudentById(Integer studId) {
+		logger.debug("Select Student By ID: {}", studId);
+		SqlSession sqlSession = MyBatisSqlSessionFactory.openSession();
+		try {
+			StudentMapper studentMapper = sqlSession.getMapper(StudentMapper.class);
+			return studentMapper.findStudentById(studId);
+		} finally {
+			sqlSession.close();
+		}
+	}
+
+	public void createStudent(Student student) {
+		SqlSession sqlSession = MyBatisSqlSessionFactory.openSession();
+		try {
+			StudentMapper.studentMapper = sqlSession.getMapper(StudentMapper.class);
+			studentMapper.insertStudent(student);
+			sqlSession.commit();
+		} finally {
+			sqlSession.close();
+		}
+	}
+}
+
+还可以不通过Mapper接口
+Student student = (Student)sqlSession.selectOne("com.mybatis3.mappers.StudentMapper.findStudentById", studId);
+不过一般不会这么写，知道这个原理就好，其实是通过直接指定方法，而不是通过Mapper反射到类，在从类执行方法
+
+基本工作流程： 首先配置MyBatis配置文件mybatis-config.xml，包含JDBC连接参数，配置映射器Mapper XML配置文件，其中包含SQL语句映射。
+然后，用mybatis-config.xml的信息创建了SqlSessionFactory对象，每个数据库应该就一个SqlSessionFactory对象实例，所以用了单例模式。
+创建一个映射器Mapper接口StudentMapper，方法名和StudentMapper.xml中定义的id值完全一样，注意StudentMapper.xml中namespce的值被设置成com.mybatis3.mappers.StudentMapper,是StudentMapper接口的名字，这样就可以用这个接口调用映射的SQL。
+在StudentService.java中，在每一方法中创建了一个新的SqlSession，并在方法功能完成后关闭，每一个线程都应该有自己的SqlSession实例，SqlSession对象不是线程安全的，所以不能共享，SqlSession的作用域最好就是其方法的作用域，比如request作用域
+
+
+第二章 引导MyBatis
+1. 使用XML配置MyBatis
+构建SqlSessionFactory最常见的方式是基于XML配置，下面的mybatis-config.xml是一个典型的MyBatis配置

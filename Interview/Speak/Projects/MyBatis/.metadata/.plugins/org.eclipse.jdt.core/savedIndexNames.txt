@@ -1,4 +1,0 @@
-INDEX VERSION 1.126+E:\My Document\GitHub\MyNote\Interview\Speak\Projects\MyBatis\.metadata\.plugins\org.eclipse.jdt.core
-1999844677.index
-1738227659.index
-2088004952.index
