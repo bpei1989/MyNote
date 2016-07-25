@@ -240,3 +240,148 @@ Student student = (Student)sqlSession.selectOne("com.mybatis3.mappers.StudentMap
 第二章 引导MyBatis
 1. 使用XML配置MyBatis
 构建SqlSessionFactory最常见的方式是基于XML配置，下面的mybatis-config.xml是一个典型的MyBatis配置
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+  <properties resource="application.properties">
+    <property name="username" value="db_user" />
+    <property name="password" value="verysecurepwd" />
+  </properties>
+
+  <settings>
+  	<setting name="cacheEnable" value="true">
+  </settings>
+
+  <typeAliases>
+    <typeAlias alias="Tutor" type="com.mybatis3.domain.Tutor" />
+    <package name="com.mybatis3.domain" />
+  </typeAliases>
+
+  <typeHandlers>
+    <typeHandler handler="com.mybatis3.typehandlers.PhoneTypeHandler" />
+    <package nae="com.mybatis3.typehandlers" />
+  </typeHandlers>
+
+  <environments default="development">
+    <environment id="development">
+      <transcationManager type="JDBC" />
+      <dataSource type="POOLED">
+        <property name="driver" value="${jdbc.driverClassName}" />
+        <property name="url" value="${jdbc.url}" />
+        <property name="username" value="${jdbc.username}" />
+        <property name="password" value="${jdbc.password}" />
+      </dataSource>
+    </environment>
+    <environment id="production">
+      <transcationManager type="MANAGED" />
+      <dataSource type="JNDI">
+        <property name="data_source" value="java:comp/jdbc/MyBatisDemoDS" />
+      </dataSource>
+    </environment>
+  </environments>
+
+  <mappers>
+    <mapper resource="com/mybatis3/mappers/StudentMapper.xml">
+    <mapper url="file:///D:/mybatisdemo/mappers/TutorMapper.xml" />
+    <mapper class="com.mybatis3.mappers.TutorMapper" />
+  </mappers>
+</configuration>
+
+（1）最重要的部分，MyBatis支持多个dataSource环境，DEV开发，TEST测试，QA质量评估，UAT验收，PRODUCTION生产，可以通过environment id设置
+本xml默认环境被设置成development，当需要部署到生产服务器时，则只需要把默认环境改成生产环境，改environment id属性
+如果需要多个数据库，如一个用于存购物车，一个用于存订单，则需要连接多个数据库，则每个数据库配置成独立环境，并且为每个数据库创建一个SqlSessionFactory，对每个environment，需要配置dataSource和transactionManager，如：
+<environments default="shoppingcart">
+  <environment id="shoppingcart">
+   <transactionManager type="MANAGED" />
+    <dataSource type="JNDI">
+      <property name="data_source" value="java:comp/jdbc/ShoppingcartDS" />
+    </dataSource> 
+  </environment>
+  <environment id="reports">
+    <transactionManager type="MANAGED" />
+    <dataSource type="JNDI">
+      <property name="data_source" value="java:comp/jdbc/ReportsDS" />
+    </dataSource>
+  </environment>
+</environments>
+为每个环境创建一个SqlSessionFactory
+inputStream = Resources.getResourceAsStream("mybatis-config.xml");
+defaultSqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+cartSqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream, "shoppingcart");
+reportSqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream, "reports");
+创建SqlSessionFactory时，如果没有指定，则用默认的（第一个）
+注：注意id与代码中的映射，还有dataSource，transactionManager
+
+（2）数据源DataSource
+      <dataSource type="POOLED">
+        <property name="driver" value="${jdbc.driverClassName}" />
+        <property name="url" value="${jdbc.url}" />
+        <property name="username" value="${jdbc.username}" />
+        <property name="password" value="${jdbc.password}" />
+      </dataSource>
+dataSource可以配置为： UNPOOLED，POOLED，JNDI
+UNPOOLED，MyBatis为每个数据库操作创建一个新的连接，并关闭，只用于小规模用户系统
+POOLED，MyBatis会创建一个数据库连接池，需要时从池中取出连接，一旦数据库操作完成就会返回给连接池，开发测试环境中一般用这个
+JNDI，MyBatis从在应用服务器向配置好的JNDI数据源dataSource获取数据库连接，生产环境一般用这个
+
+（3）事务管理器TransactionManager
+负责提交、回退等，可设置为JDBC，MANAGED
+JDBC，用JdbcTransactionFactory类创建TransactionManager，如部署到Tomcat中的程序，需要自己管理事务
+MANAGED，用ManagedTransactionFactory类创建事务管理器，如一个JavaEE程序部署到JBOSS服务器，会用EJB进行事务管理，Managed是托管，应用本身不去管理事务，而是把事务管理交给应用所在的服务器管理。
+
+（4）Properties，配置属性可以具体化到一个文件中，比如这里是application.properties
+而且如果文件中的key和property name一样，则文件中的会覆盖xml中的，一般都是用一个文件
+#application.properties
+jdbc.driverClassName=com.mysql.jdbc.Driver
+jdbc.url=jdbc:mysql://localhost:3306/mybatisdemo
+jdbc.username=root
+jdbc.password=admin
+文件中的会覆盖xml中的，即username password是root admin，不是db_user， verysecurepwd
+
+还可以在mybatis-config.xml中，使用application.properties文件中的占位符
+      <dataSource type="POOLED">
+        <property name="driver" value="${jdbc.driverClassName}" />
+        <property name="url" value="${jdbc.url}" />
+        <property name="username" value="${jdbc.username}" />
+        <property name="password" value="${jdbc.password}" />
+      </dataSource>
+${jdbc.xxx}需要和文件中的key一样的名字
+
+（5）类型别名
+在SQLMapper配置文件中，对于resultType和parameterType属性值，需要使用JavaBean的完全限定名
+<select id="findStudentById" parameterType="int" 
+	resultType="com.mybatis3.domain.StudentResult">
+    SELECT STUD_ID AS ID, NAME, EMAIL, DOB
+    FROM STUDENTS WHERE STUD_ID=#{Id}
+</select>
+<update id="updateStudent" parameterType="com.mybatis3.domain.Student">
+	UPDATE STUDENTS
+		SET NAME=#{name}, EMAIL=#{email}, DOB=#{dob}
+		WHERE STUD_DI=#{id}
+</upddate>
+
+resultTYpe和parameterType为Student类型的完全限定名，可以起一个别名，然后用到的地方直接用别名
+<typeAliases>
+  <typeAlias alias="Student" type="com.mybatis3.domain.Student" />
+  <typeAlias alias="Tutor" type="com.mybatis3.domain.Tutor" />
+  <package name="com.mybatis3.domain" />
+</typeAliases>
+
+在SQLMapper中使用别名
+<select id="findStudentById" parameterType="int" 
+	resultType="StudentResult">
+    SELECT STUD_ID AS ID, NAME, EMAIL, DOB
+    FROM STUDENTS WHERE STUD_ID=#{Id}
+</select>
+<update id="updateStudent" parameterType="Student">
+	UPDATE STUDENTS
+		SET NAME=#{name}, EMAIL=#{email}, DOB=#{dob}
+	WHERE STUD_DI=#{id}
+</upddate>
+
+可以不为每一个JavaBean单独定义别名，可以提供需要取别名的JavaBean所在的包，MyBatis会自动扫描包内定义的JavaBeans，然后分别为
+JavaBean注册一个小写字母开头的别名
+<typeAliases>
+  <package name="com.mybatis3.domain" />
+</typeAliases>
