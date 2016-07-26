@@ -385,3 +385,301 @@ JavaBean注册一个小写字母开头的别名
 <typeAliases>
   <package name="com.mybatis3.domain" />
 </typeAliases>
+
+如果Student.java和Tutor.java定义在com.mybatis3.domain中，则会被注册为student,tutor
+
+注解@Alias可以覆盖xml别名
+@Alias("StudentAlias")
+public class Student {
+
+}
+
+（6）类型处理器typeHandlers
+MyBatis会对基本类型，基本数据类型，基本类型的包裹类型，byte，java.util.Date, java.sql.Date, java.sql.Time, java.sql.Timestamp,枚举等类型使用内建的类型处理器
+当属性的类型属于上述类型，则会使用对应的类型处理器把值设置到PrparedStetement中，类似，从SQL结果也有类似过程
+<insert id="insertStudent" parameterType="Student">
+  INSERT INTO STUDENTS(STUD_ID,NAME,EMAIL,DOB)
+  VALUES(#{studId},#{name},#{email},#{dob})
+</insert>
+处理过程如下：
+a）创建一个有占位符的PreparedStatement接口
+PreparedStatement pstmt = connection.prepareStatement ("INSERT INTO STUDENTS(STUD_ID,NAME,EMAIL,DOB) VALUES(?,?,?,?)");
+b）检查Student对象属性studId类型，然后用适合的setXXX方法
+pstmt.setInt(1,student.getStudId());
+c）类似的对其他的也是调用setXXX方法
+pstmt.setString(2, student.getName());
+pstmt.setString(3, student.getEmail());
+d)对dob对采用setDate，尔地阿尔会转换java.util.Date为java.sql.Timestamp
+pstmt.setTimestamp(4, new Timestamp((student.getDob()). getTime()));
+
+MyBatis通过类型处理器来鉴别类型调用set方法
+
+如果一个自定义类型，则需要用自定义的类型处理器
+Student有个phoneNumber属性，它是一个类，比如
+public class PhoneNumber {
+ private String countryCode;
+ private String stateCode;
+ private String number;
+ ...
+}
+<insert id="insertStudent" parameterType="Student">
+ insert into students(name,email,phone)
+ values(#{name},#{email},#{phone}) 
+</insert>
+默认typeHandler无法处理，则写一个自定义的，MyBatis提供了抽象类BaseTypeHandler<T>,可以继承此类创建自定义型处理器。 
+packagecom.mybatis3.typehandlers; 
+importjava.sql.CallableStatement; 
+importjava.sql.PreparedStatement; 
+importjava.sql.ResultSet; 
+importjava.sql.SQLException; 
+importorg.apache.ibatis.type.BaseTypeHandler; 
+importorg.apache.ibatis.type.JdbcType; 
+importcom.mybatis3.domain.PhoneNumber;
+//注意需要重载几个方法，就这么写，一般都是转字符串，这里是把phoneNumber转为字符串
+public class PhoneTypeHandler extends BaseTypeHandler<PhoneNumber> {
+	@Override
+	public void setNonNullParameter(PreparedStatement ps, int i, PhoneNumber parameter, 
+		JdbcType jdbcType) throws SQLException {
+		ps.setString(i, parameter.getAsString());
+	}
+
+	@Override
+	public void getNullableResult(ResultSet rs, String columnName)
+	 throws SQLException {
+	 	return new PhoneNumber(rs.getString(columnName));
+	}
+
+	@Override
+	public PhoneNumber getNullableResult(ResultSet rs, int columnIndex)
+	 throws SQLException {
+	 	return new PhoneNumber(rs.getString(columnIndex));
+	}
+
+	@Override
+	public PhoneNumber getNullableResult(CallableStatement cs, int columnIndex)
+	 throws SQLException {
+	 	return new PhoneNumber(cs.getString(columnIndex)); } }
+	 }
+}
+一旦我们实现了自定义的类型处理器，需要注册在mybatis-config.xml中
+<configuration>
+ <properties resource="application.properties" />
+ <typeHandlers>
+  <typeHandler handler="com.mybatis3.typehandlers. PhoneTypeHandler" />
+ </typeHandlers>
+</configuration>
+
+（6）全局设置
+  <settings>
+  	<setting name="cacheEnable" value="true">
+  </settings>
+特定的设置覆盖默认的全局设置，有很多，用到时查
+<settings> 
+	<setting name="cacheEnabled" value="true" /> 
+	<setting name="lazyLoadingEnabled" value="true" /> 
+	<setting name="multipleResultSetsEnabled" value="true" /> 
+	<setting name="useColumnLabel" value="true" /> 
+	<setting name="useGeneratedKeys" value="false" /> 
+	<setting name="autoMappingBehavior" value="PARTIAL" /> 
+	<setting name="defaultExecutorType" value="SIMPLE" /> 
+	<setting name="defaultStatementTimeout" value="25000" /> 
+	<setting name="safeRowBoundsEnabled" value="false" /> 
+	<setting name="mapUnderscoreToCamelCase" value="false" />
+	<setting name="localCacheScope" value="SESSION" /> 
+	<setting name="jdbcTypeForNull" value="OTHER" /> 
+	<setting name="lazyLoadTriggerMethods" value="equals,clone,hashCode ,toString" /> 
+</settings>
+
+（7）SQL映射Mappers
+SQL Mapper文件位置
+<mappers>
+   <mapper resource="com/mybatis3/mappers/StudentMapper.xml" />
+   <mapper url="file:///D:/mybatisdemo/app/mappers/TutorMapper.xml" />
+   <mapper class="com.mybatis3.mappers.TutorMapper" />
+   <package name="com.mybatis3.mappers" />
+</mappers>
+以上每一个mapper标签都可以从不同类型的资源中加载mapper文件，应该是用一个就行
+resource，指定在classpath中的mapper文件
+url，完整文件路径或url
+class，指定一个mapper接口
+package，指定一个可以找到Mapper接口的包
+
+2. 使用Java API配置MyBatis
+各个部分与xml一样，不过用API配置，不常用，不用看
+
+3. 自定义MyBatis日志（不重要，一般用默认的就行）
+MyBatis有一个默认日志打印包选择列表，比如slf4j最优先，jdk最后；用org.apache.ibatis.logging.LogFactory.usexxx()可以指定用哪个
+
+
+第三章 使用XML配置SQL映射器
+与Hibernate不同，MyBatis可以直接使用数据库，而不是隐藏，这样可以发挥SQL的威力，MyBatis还消除了冗余代码，更方便使用SQL，代码里直接嵌套SQL不易维护，所以MyBatis使用映射配置文件或注解来配置SQL
+
+1. 映射器配置文件和映射器接口
+StudentMapper.xml中id为findStudentById的SQL语句
+<?xml version="1.0" encoding="utf-8"?> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd"> 
+<mapper namespace="com.mybatis3.mappers.StudentMapper"> 
+  <select id="findStudentById" parameterType="int" resultType="Student"> 
+    select stud_id as studId, name, email, dob 
+    from Students where stud_id=#{studId} 
+  </select> 
+</mapper>
+
+Java Code
+可以直接用Student student = sqlSession.selectOne("com.mybatis3.mappers.StudentMapper.findStudentById", studId);
+但是这样不好，需要自己找和保证各种条件，不会用，但是知道这个原理，可以直接找到方法，然后传入参数调用
+//正确做法，新建一个名字一样的接口
+//StudentMapper.xml所在的包名是com.mybatis3.mappers,对应的接口就是com.mybatis3.mappers.StudentMapper,方法名也必须和XML中一样
+//因为是要根据反射获取对象和方法，所以必须一致，否则就找不到了
+package com.mybatis3.mappers; 
+public interface StudentMapper
+{
+  Student findStudentById(Integer id);
+}
+在Student.xml配置文件中，namespace和StudentMapper的接口需要一致，而且id，parameterType,returnType和接口中的方法名，参数类型，返回值一致
+所有的操作都是类似，如insert等
+public Student findStudentById(Integer studId) {
+  SqlSession sqlSession = MyBatisUtil.getSqlSession();
+  try {
+    StudentMapper studentMapper = sqlSession.getMapper(StudentMapper.class);
+    return studentMapper.findStudentById(studId);
+  } finally { 
+    sqlSession.close();
+  }
+}
+如果Mapper接口中的方法和XML中的语句不匹配，会抛出异常，实际上，parameterType是可选的，反射机制会决定parameterType，但是从可读性角度来看，必须指定，如果parameterType没有指定，则调用者必须保证类型
+
+2.映射语句
+变量用#{}，名字也要和java中的一样
+(1)INSERT
+<!--id对方法，parameterType对参数，必须与接口中一样，最上层还有namespace，是接口的报名.接口名，反射时会用-->
+<insert id="insertStudent" parameterType="Student">
+    INSERT INTO STUDNETS(STUD_ID,NAME,EMAIL,PHONE)
+    	VALUES（#{studId},#{name},#{email},#{phone})
+</insert>
+parameterType用的别名，否则应该是这个类的完整路径
+int count = sqlSession.insert("com.mybatis3.mappers.StudentMapper.insertStudent", student);
+一般不会这么用
+//正确用法
+package com.mybatis3.mappers; 
+public interface StudentMapper
+{
+  Student findStudentById(Integer id);
+  int insertStudent(Student student);
+}
+然后调用
+StudentMapper mapper = sqlSession.getMapper(StudentMapper.class);
+int count = mapper.insertStudent(student);
+
+自动生成主键
+userGenerateKeys让数据库生产AUTO_INCREMENT，keyProperty把这个属性赋予某一列
+<insert id="insertStudent" parameterType="Student" useGeneratedKeys="true" keyProperty="studId">
+    INSERT INTO STUDNETS(STUD_ID,NAME,EMAIL,PHONE)
+    	VALUES（#{studId},#{name},#{email},#{phone})
+</insert>
+stud_id自动生成，并设置到student对象的studId上
+<selectKey>可以生成主键，order是触发器的前后
+<insert id="insertStudent" parameterType="Student">
+<!!--selectKey主键值，keyProperty把主键值赋给谁，resultType返回类型，order顺序-->
+	<selectKey keyProperty="studId" resultType="int" order="BEFORE">
+		SELECT primarykey FROM DUAL
+	</selectKey>
+	INSERT INTO STUDENTS(STUD_ID,NAME,EMAIL,PHONE)
+		VALUES(#{studId},#{name},#{email},#{phone})
+</insert>
+在INSERT之前把主键值设置到studId
+另一种写法，order类似于触发器
+<insert id="insertStudent" parameterType="Student">
+	INSERT INTO STUDENTS(STUD_ID,NAME,EMAIL,PHONE)
+		VALUES(#{studId},#{name},#{email},#{phone})
+	<selectKey keyProperty="studId" resultType="int" order="AFTER">
+		SELECT primarykey FROM DUAL
+	</selectKey>
+</insert>
+
+(2)UPDATE
+<update id="updateStudent" parameterType="Student">
+	UPDATE STUDENTS SET NAME=#{name}, EMAIL=#{email}, PHONE=#{phone}
+	WHERE STUD_ID=#{studId}
+</update>
+//不常用
+int noOfRowsUpdated = sqlSession.update("com.mybatis3.mappers.StudentMapper.updateStudent", student);
+//正确
+package com.mybatis3.mappers; 
+public interface StudentMapper
+{
+  Student findStudentById(Integer id);
+  int insertStudent(Student student);
+  int updateStudent(Student student);
+}
+StudentMapper mapper = sqlSession.getMapper(StudentMapper.class);//接口反射
+int noOfRowsUpdated = mapper.updateStudent(student);
+
+(3)DELETE
+<delete id="deleteStudent" parameterType="int">
+	DELETE FROM STUDENTS WHERE STUD_ID=#{studId}
+</delete>
+//不常用
+int studId = 1;
+int noOfRowsDeleted = sqlSession.delete("com.mybatis3.mappers.StudentMapper.deleteStudent", studId);
+//正确
+public interface StudentMapper
+{
+  Student findStudentById(Integer id);
+  int insertStudent(Student student);
+  int updateStudent(Student student);
+  int deleteStudent(int studId);
+}
+StudentMapper mapper = sqlSession.getMapper(StudentMapper.class);
+int noOfRowsDeleted = mapper.deleteStudent(studId);
+
+(4)SELECT
+MyBatis真正强大的功能是映射SELECT结果到JavaBean方面的灵活性
+<select id="findStudentById" parameterType="int"
+resultType="Student">
+	SELECT STUD_ID, NAME, EMAIL, PHONE 
+	FROM STUDENTS 
+	WHERE STUD_ID=#{studId}
+</select>
+调用java后Student类的studId没有填充，因为MyBatis只负责填充与列名相同的部分，比如name,email,phone，如果不同则不会填充
+SELECT STUD_ID, NAME, EMAIL, PHONE，
+Student里STUD_ID是studId，而其他的都一样，只不过大小写不一样，不区分大小写
+解决方法：别名
+<select id="findStudentById" parameterType="int"
+resultType="Student">
+	SELECT STUD_ID AS studId, NAME, EMAIL, PHONE 
+	FROM STUDENTS 
+	WHERE STUD_ID=#{studId}
+</select>
+public interface StudentMapper{
+	...
+	Student findStudentById(Integer studId);
+}
+StudentMapper mapper = sqlSession.getMapper(StudentMapper.class);
+Student student = mapper.findStudentById(studId);
+(不要这么写，虽然能工作
+int studId =1;
+Student student = sqlSession.selectOne("com.mybatis3.mappers. StudentMapper.findStudentById", studId);
+)
+
+<select id="findAllStudents" resultType="Student">
+	SELECT STUD_ID AS studId, NAME,EMAIL, PHONE 
+	FROM STUDENTS
+</select>
+List<Student> students = sqlSession.selectList("com.mybatis3.mappers.StudentMapper.findAllStudents");
+或
+package com.mybatis3.mappers; 
+public interface StudentMapper { 
+  List<Student> findAllStudents();
+}
+StudentMapper mapper = sqlSession.getMapper(StudentMapper.class);
+List<Student> students = mapper.findAllStudents();
+List<Student>其实也可以用Set Map
+对于List,Collection,Iterable类型，MyBatis会返回java.util.ArrayList
+对于Map类型，返回HashMap
+对于SortedSet，返回TreeSet
+
+3.结果集映射为ResultMap
+ResultMap用来将SELECT结果映射到JavaBean属性
+(1)简单ResultMap
+
