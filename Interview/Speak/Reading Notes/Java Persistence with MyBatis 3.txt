@@ -682,4 +682,117 @@ List<Student>其实也可以用Set Map
 3.结果集映射为ResultMap
 ResultMap用来将SELECT结果映射到JavaBean属性
 (1)简单ResultMap
+<resultMap id="StudentResult" type="com.mybatis3.domain.Student">
+	<id property="studId" column="stud_id" />
+	<result property="name" column="name" />
+	<result property="email" column="email" />
+	<result property="phone" column="phone" />
+</resultMap>
+<select id="findAllStudents" resultMap="StudentResult">
+	SELECT * FROM STUDENTS
+</select>
+<select id="findStudentById" parameterType="int" resultMap="StudentResult">
+<!--这里studId是上面的id property，数据库中的列名为stud_id-->
+	SELECT * FROM STUDENTS WHERE STUD_ID=#{studId}
+</select>
+resultMap的id是全局唯一的，type必须是与result proerty各个选项对应的那个类或别名
+resultType用于基本类型或默认填写的类型，比如各个列与类中的成员变量名一样，而resultMap可把结果映射为JavaBean，即类的各个属性，可以处理列名与类成员变量名不一致的情况
+<select id="findAllStudents" resultType="map">
+	SELECT STUD_ID, NAME, EMAIL, PHONE FROM STUDENTS
+</select>
+由于结果是map而且多行，就是List<HashMap<String,Object>>
+List<HashMap<String, Object>> studentMapList = sqlSession.selectList("com.mybatis3.mappers.StudentMapper.findAllStudents");
+for(HashMap<String, Object> studentMap : studentMapList){...}
 
+(2)拓展ResultMap
+resultMap可继承，一个resultMap通过extends，可以直接拥有父ResultMap的属性
+<resultMap id="StudentResult" type="com.mybatis3.domain.Student">
+	<id property="studId" column="stud_id" />
+	<result property="name" column="name" />
+	<result property="email" column="email" />
+	<result property="phone" column="phone" />
+</resultMap>
+
+<!--已经拥有上面resultMap的属性-->
+<resultMap type="Student" id="StudentWithAddressResult" extends="StudentResult">
+	<result property="address.addrId" column="addr_id" />
+	<result property="address.city" column="city" />
+</resultMap>
+
+(3)联结
+可以把两个表的所有列写到一块组成一个ResultMap，只要各个列与SELECT出的结果一一对应就行，比如联结的结果为
+表1.列1 表1.列2 表2.列1
+那就可以把resultMap写成
+<resultMap type="Student" id="StudentWithAddressResult">
+	<id property="studId" column="stud_id" />
+	<result property="name" column="表1.列1" />
+	<result property="email" column="表1.列2" />
+	<result property="address.country" column="表2.列1" />
+</resultMap>
+只要列与外面的类一一对应就行，类不会管查询是联结还是什么，类只管结果
+但是一般不会用，因为不清晰，正确做法是：
+(注意setter和getter必须有)
+public class Address {
+ private Integer addrId;
+ private String street;
+ private String city;
+ private String state;
+ private String zip;
+ private String country;
+ // setters & getters
+}
+
+public class Student{
+	private Integer studId;
+	private String name;
+	private String email;
+	private PhoneNumber phone;
+	private Address address; //注意这里，必须是Address类型，才能应对返回的结果
+	//setters & getters
+}
+
+分两个resultMap，Student包含Address，与逻辑一样，association是has one的意思，而不是把所有的都写到一块
+注意id，<id property="studId" column="stud_id" />是与变量对应的，studId与#{studId}，result是结果
+<resultMap type="Address" id="AddressResult">
+	<id property="addrId" column="addr_id" />
+	<result property="street" column="street" />
+	<result property="city" column="city" />
+	<result property="state" column="state" />
+	<result property="zip" column="zip" />
+	<result property="country" column="country" />
+</resultMap>
+<!--type与外面的类名一样，其中的id，result与外面类的属性名和类型一样-->
+<resultMap type="Student" id="StudentWithAddressResult">
+	<id property="studId" column="stud_id" />
+	<result property="name" column="name" />
+	<result property="email" column="email" />
+	<!--联结的处理，用association关键字，表示外面resultMap包含本ResultMap-->
+	<association property="address" resultMap="AddressResult" />
+</resultMap>
+<!--注意，resultMap只表示结果，xml只规定配置，具体sql语句中的表名，AS等于数据库中一致，与MyBatis的xml无关-->
+<select id="findStudentWithAddress" parameterType="int"
+resultMap="StudentWithAddressResult">
+	SELECT STUD_ID, NAME, EMAIL, A.ADDR_ID, STREET, CITY, STATE,
+	ZIP, COUNTRY
+	FROM STUDENTS S LEFT OUTER JOIN ADDRESSES A ON
+	S.ADDR_ID=A.ADDR_ID
+	WHERE STUD_ID=#{studId}
+</select>
+
+还可以这么写：
+<resultMap type="Student" id="StudentWithAddressResult">
+	<id property="studId" column="stud_id" />
+	<result property="name" column="name" />
+	<result property="email" column="email" />
+	<association property="address" javaType="Address">
+		<id property="addrId" column="addr_id" />
+		<result property="street" column="street" />
+		<result property="city" column="city" />
+		<result property="state" column="state" />
+		<result property="zip" column="zip" />
+		<result property="country" column="country" />
+	</association>
+</resultMap>
+
+(4)嵌套查询
+如SELECT xxx WHERE yyy=(SELECT ...), SELECT xxx WHERE yyy IN (SELECT ...)

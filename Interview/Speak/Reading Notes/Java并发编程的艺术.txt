@@ -82,3 +82,144 @@ c.只能保证一个共享变量的原子操作，这时可以用锁
 线程之间通信机制有两种：共享内存和消息传递
 Java用的是共享内存，Java线程之间的通信是透明的
 
+所有的实例域，静态域和数组元素都存在堆内存中，称共享变量；局部变量，方法参数，异常处理等不会在线程间共享；线程间通信由JMM（java内存模型）空值
+
+缓存可以提高处理器效率，避免频繁操作内存而使处理器停顿，但是有个问题就是，缓存只对该处理器可见，所以现代处理器都会对读写操作重排序，重排序是编译器和处理器为了优化程序性能而对指令序列进行重新排序的一种手段。
+JMM使用happens-before规则保证内存可见性，避免程序员关心复杂的，不同类型的重排序
+happens-before不意味着一个操作必须要在后一个操作之前执行，它仅仅要求前一个操作的结果对后一个可见
+
+JMM的具体实现为在不改变程序的执行结果前提下，尽量允许重排序，比如获取锁之后不影响结果的重排序，单线程重拍序不会影响结果，主要是多线程情况下
+
+2.volatile的内存语义
+volatile变量的特性：
+可见性。对一个volatile变量的读，总是能看到任意线程对这个volatile变量最后的写入（happens-before规则）
+原子性。对单个volatile变量的读写具有原子性，但类似i++的符合操作不具备原子性，那个是Atomic的用处
+
+JMM中volatile的语义（内存语义基本可以理解为工作原理）
+volatile写的内存语义：当写一个volatile变量时，JMM会把该线程对应的本地内存中的共享变量值刷新到主内存
+volatile读的内存语义：当读一个volatile变量时，JMM会把该线程对应的本地内存置为无效，接下来从主内存中读取共享变量
+
+为实现volatile内存语义，在编译成字节码时，会在指令序列中插入内存屏障来禁止处理器的重排序
+
+3.锁的内存语义
+释放获取建立happens-before关系
+当线程获取锁时，JMM会把该线程对应的本地内存置为无效，从而使得临界区代码必须从内存中读取共享变量
+
+
+第四章 Java并发编程基础
+1. 基础
+线程是操作系统调度的最小单元，轻量级进程，一个进程里可以创建多个线程，它们用于各自的计数器，局部变量和函数调用栈，而且能够访问共享变量，处理器高速切换，让用户感觉这些线程在同时执行
+仅仅运行main函数就有好几个线程启动，并非只有main一个，可调用ManagementFactory.getThreadMXBean()获取，如
+Signal Dispatcher，处理JVM的信号
+Finalizer，调用对象finalize方法
+Reference Handler清楚Reference
+main 用户程序入口
+
+不同系统对JVM线程优先级存在差异，有的会忽略Java优先级
+
+线程有这几种状态：
+NEW（初始），构建完成，还没调用start
+RUNNABLE（运行），Java把系统就绪和运行笼统的成为RUNNABLE，即RUNNABLE包括READY，RUNNING
+BLOCKED，阻塞
+WAITING，等待
+TIME_WAITING（超时等待），指定时间内返回
+TERMINATED（终止），线程执行完成
+
+jstack可以打印运行时线程信息
+
+NEW-start()-RUNNABLE（RUNNING或READY）
+RUNNING-yeild()-READY
+READY-系统调度-RUNNING
+RUNNABLE-wait(),join(),LockSupport.park()-等待
+RUNNABLE-wait(long),join(long),sleep(long),LockSupport.parkNanos(),LockSupport.parkUtil()-TIMED_WAITING
+RUNNABLE-等待synchronized,锁-BLOCKING阻塞
+WAITING，TIMED_WAITING-notify(),notifyAll,LockSupport.unpark(Thread)-RUNNABLE
+BLOCKED-获取锁-RUNNABLE
+RUNNABLE-完成-TERMINATED
+
+thread.setDaemon(true);
+
+线程通过start()方法启动，随着run方法执行完毕而终止
+
+为线程命名，方便jstack分析
+
+不要用stop方法，用interrupt方法
+线程通过isInterrupted方法判断自身是否可中断，Thread.interrupted()对当前线程的中断标识位复位，在抛出InterruptedException之前，
+JVM会先将该线程的中断标识位清除，此时调用interrupt方法返回false
+
+suspend，resume，stop方法有副作用，用wait，notify代替，或者更好的用Lock，Semaphore等，总之java中有过期用法，只不过为了兼容而放在那，不要用
+
+Runnable Thread
+在java中可有两种方式实现多线程，一种是继承Thread类，一种是实现Runnable接口；Thread类是在java.lang包中定义的。一个类只要继承了Thread类同时覆写了本类中的run()方法就可以实现多线程操作了，但是一个类只能继承一个父类，这是此方法的局限。
+Thread:
+MyThread m = new Thread("No.1");
+m.run()
+
+Runnable:
+MyThread m = new Thread("No.1");
+new Thread(m).start();  //Thread启动Runnable
+一旦调用start()方法，则会通过JVM找到run()方法,Thread类是Runnable接口的子类。
+在程序开发中只要是多线程肯定永远以实现Runnable接口为主，因为实现Runnable接口相比继承Thread类有如下好处：
+避免点继承的局限，一个类可以继承多个接口。
+适合于资源的共享
+
+用一个volatile boolean变量空值是否要停止任务是最常用的方法
+public class Runner implements Runnable {
+	private volatile boolean on = true;
+	@Override
+	public void run() {
+		while(on) {
+			i++;
+		}
+	}
+
+	public void cancel() {
+		on = false;
+	}
+}
+
+Runner run = new Runner();
+Thread countThread = new Thread(run, "Threadname");
+countThread.start();
+
+2. 线程间通信
+volatile和synchronized
+Java支持多个线程同时访问一个对象或者对象的成员变量，由于每个线程可以拥有这个变量的拷贝，所以在执行过程中，一个线程看到的变量不一定是最新的
+虽然对象及其成员变量的是在共享内存中的，但是每个线程还是可以有拷贝，目的是加速执行
+关键字volatile修饰的成员变量，就是告知程序任何对该变量的访问均需从共享内存中获取，而对它的修改必须刷回共享内存，保证多线程对变量的可见性
+关键字synchronized可以修饰方法或同步块，主要确保多个线程在同一时刻，只能有一个线程处于方法或者同步块中，保证了线程对变量访问的可见性和排他性
+
+synchronized实现：任意一个对象都拥有自己的Monitor，当这个对象由同步块或者同步方法调用时，执行的线程必须现先获取该对象的Monitor才能进入同步模块或者同步方法，而没有获取到Monitor的线程将被阻塞（BLOCEKD，不是READY，READY和RUNNING统称运行中，这点要清楚）在入口处
+
+wait/notify（任意对象都具备这两个方法，它们被定义在Object上，如syncObj.wait,syncObj.nofity）
+注意事项：
+使用wait(),notify(),notifyAll()要先对调用对象加锁，即它们出现在同步区域内，不是外面；
+调用wait()后线程由RUNNING变成WAIT；
+notify方法将等待队列中的一个等待线程从等待队列放到同步对列中（注意，Java同步有很多队列数据结构，一般都是FIFO的）；
+notifyAll方法吧等待队列中所有线程移动到同步对列；
+notify和notifyAll调用后，等待线程不会从wait返回，需要调用notify()和notifyAll()线程释放锁后，等待线程才有机会返回；
+wait方法返回的前提是获得了锁
+（注：wait,notify,notifyAll，屏蔽了获取Monitor的过程，实际进入同步对列还需要竞争Monitor，不是Lock，锁是概念，Lock是对象，Java后来才加的，最开始只有synchronized，所以说Monitor是锁，不是Lock对象）
+
+wait/nofify模板
+等待方：
+synchronized(对象) {
+	while(条件不满足) {
+		对象.wait();
+	}
+	...
+}
+
+通知方：
+synchronzied(对象) {
+	改变条件
+	对象.notifyAll();
+}
+操作都是对象，用同步的对象去notify，这个对象的方法用于操作具体事情
+
+PipedOutputStream PipedInputStream，管道，了解
+
+
+
+
+
