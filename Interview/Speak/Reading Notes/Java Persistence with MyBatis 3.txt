@@ -794,5 +794,813 @@ resultMap="StudentWithAddressResult">
 	</association>
 </resultMap>
 
-(4)嵌套查询
+(4)嵌套查询（嵌套SELECT会有性能低的问题，所以大型系统一般不会用嵌套查询）
 如SELECT xxx WHERE yyy=(SELECT ...), SELECT xxx WHERE yyy IN (SELECT ...)
+<resultMap type="Address" id="AddressResult">
+	<id property="addrId" column="addr_id" />
+	<result property="street" column="street" />
+	<result property="city" column="city" />
+	<result property="state" column="state" />
+	<result property="zip" column="zip" />
+	<result property="country" column="country" />
+</resultMap>
+<select id="findAddressById" parameterType="int"
+resultMap="AddressResult">
+	SELECT * FROM ADDRESSES WHERE ADDR_ID=#{addrId}
+</select>
+<resultMap type="Student" id="StudentWithAddressResult">
+	<id property="studId" column="stud_id" />
+	<result property="name" column="name" />
+	<result property="email" column="email" />
+	<association property="address" column="addr_id" select="findAddressById" />
+</resultMap>
+<select id="findStudentWithAddress" parameterType="int"
+resultMap="StudentWithAddressResult">
+	SELECT * FROM STUDENTS WHERE STUD_ID=#{studId}
+</select>
+调用：
+StudentMapper mapper = sqlSession.getMapper(StudentMapper.class);
+Student student = mapper.findStudentWithAddress(studId);
+System.out.println(student);
+System.out.println(student.getAddress());
+
+(5)一对多（包含一个集合而不是单个元素的情况）
+注：可以执行SQL后看到各列，然后再定义类和XML，在复杂的情况下可能马上不能确定结果，执行SQL根据结果写XML和类
+collection标签是指结果是一个集合
+联结（嵌套resultMap）：
+public class Course { 
+	private Integer courseId; 
+	private String name; 
+	private String description; 
+	private Date startDate; 
+	private Date endDate; 
+	private Integer tutorId; 
+	//setters & getters 
+}
+public class Tutor { 
+	private Integer tutorId; 
+	private String name; 
+	private String email; 
+	private Address address; 
+	private List<Course> courses; 
+	//setters & getters 
+}
+
+<resultMap type="Course" id="CourseResult">
+	<id column="course_id" property="courseId" />
+	<result column="name" property="name" />
+	<result column="description" property="description" />
+	<result column="start_date" property="startDate" />
+	<result column="end_date" property="endDate" />
+</resultMap>
+<resultMap type="Tutor" id="TutorResult">
+	<id column="tutor_id" property="tutorId" />
+	<result column="tutor_name" property="name" />
+	<result column="email" property="email" />
+	<!--collection的属性是resultMap-->
+	<collection property="courses" resultMap="CourseResult" />
+</resultMap>
+<select id="findTutorById" parameterType="int"
+resultMap="TutorResult">
+<!--这么写不好，分大小写，关键字大写-->
+	SELECT T.TUTOR_ID, T.NAME AS TUTOR_NAME, EMAIL, C.COURSE_ID,
+	C.NAME, DESCRIPTION, START_DATE, END_DATE
+	FROM TUTORS T LEFT OUTER JOIN ADDRESSES A ON T.ADDR_ID=A.ADDR_ID
+	LEFT OUTER JOIN COURSES C ON T.TUTOR_ID=C.TUTOR_ID
+	WHERE T.TUTOR_ID=#{tutorId}
+</select>
+
+嵌套SELECT：
+<resultMap type="Course" id="CourseResult">
+	<id column="course_id" property="courseId" />
+	<result column="name" property="name" />
+	<result column="description" property="description" />
+	<result column="start_date" property="startDate" />
+	<result column="end_date" property="endDate" />
+</resultMap>
+<resultMap type="Tutor" id="TutorResult">
+	<id column="tutor_id" property="tutorId" />
+	<result column="tutor_name" property="name" />
+	<result column="email" property="email" />
+	<association property="address" resultMap="AddressResult" />
+	<!--嵌套查询就是最后加一个select指定方法，这个方法返回就是相当于IN (xxx)括号里的部分-->
+	<collection property="courses" column="tutor_id" select="findCoursesByTutor" />
+</resultMap>
+<select id="findTutorById" parameterType="int" resultMap="TutorResult">
+	SELECT T.TUTOR_ID, T.NAME AS TUTOR_NAME, EMAIL
+	FROM TUTORS T WHERE T.TUTOR_ID=#{tutorId}
+</select>
+<select id="findCoursesByTutor" parameterType="int" resultMap="CourseResult">
+	SELECT * FROM COURSES WHERE TUTOR_ID=#{tutorId}
+</select>
+public interface TutorMapper { 
+	Tutor findTutorById(int tutorId); 
+} 
+TutorMapper mapper = sqlSession.getMapper(TutorMapper.class); 
+Tutor tutor = mapper.findTutorById(tutorId); 
+System.out.println(tutor); 
+List<Course> courses = tutor.getCourses(); 
+for (Course course : courses) { System.out.println(course); }
+
+4. 动态SQL
+在xml里加上<if>,<choose>,<where>,<foreach>,<trim>，根据条件创建SQL
+(1) if
+如搜索界面，设置了Tutor，CourseName，StartTime，EndTIme，讲师是必须的，其他可选，则有可能有有可能没有，有的情况下就需要显示特定的过滤结果
+<resultMap type="Course" id="CourseResult">
+	<id column="course_id" property="courseId" />
+	<result column="name" property="name" />
+	<result column="description" property="description" />
+	<result column="start_date" property="startDate" />
+	<result column="end_date" property="endDate" />
+</resultMap>
+<!--注意参数类型-->
+<select id="searchCourses" parameterType="hashmap" resultMap="CourseResult">
+	SELECT * FROM COURSES
+		WHERE TUTOR_ID= #{tutorId}
+	<if test="courseName != null">
+	AND NAME LIKE #{courseName}
+	</if>
+	<if test="startDate != null">
+	AND START_DATE >= #{startDate}
+	</if>
+	<if test="endDate != null">
+	AND END_DATE <= #{endDate}
+	</if>
+</select>
+
+public interface CourseMapper { 
+	List<Course> searchCourses(Map<String, Object> map); 
+}
+public void searchCourses() {
+	Map<String, Object> map = new HashMap<String, Object>();
+	map.put("tutorId", 1);
+	map.put("courseName", "%java%");
+	map.put("startDate", new Date());
+	CourseMapper mapper = sqlSession.getMapper(CourseMapper.class);
+	List<Course> courses = mapper.searchCourses(map);
+	for (Course course : courses) { System.out.println(course); }
+}
+if类似于AND,必须有WHERE的基础上才能只用if，否则需要用<where> <if>
+
+(2) choose, when, otherwise
+choose when otherwise类似于if elif else
+<select id="searchCourses" parameterType="hashmap" resultMap="CourseResult">
+	SELECT * FROM COURSES
+	<choose>
+		<when test="searchBy == 'Tutor'">
+			WHERE TUTOR_ID= #{tutorId}
+		</when>
+		<when test="searchBy == 'CourseName'">
+			WHERE name like #{courseName}
+		</when>
+		<otherwise>
+			WHERE TUTOR start_date >= now()
+		</otherwise>
+	</choose>
+</select>
+
+(3)Where条件
+动态插入where条件，if只是where条件的选择类似于动态AND，choose，when，otherwise才是if else，<if>不是
+<select id="searchCourses" parameterType="hashmap"
+resultMap="CourseResult">
+	SELECT * FROM COURSES
+	<where>
+		<if test=" tutorId != null ">
+			TUTOR_ID= #{tutorId}
+		</if>
+		<if test="courseName != null">
+			AND name like #{courseName}
+		</if>
+		<if test="startDate != null">
+			AND start_date >= #{startDate}
+		</if>
+		<if test="endDate != null">
+			AND end_date <= #{endDate}
+		</if>
+	</where>
+</select>
+
+(4)<trim>条件
+trim和where类似，不过提供了添加前缀/后缀 或 移除前缀/后缀的功能，更灵活
+<select id="searchCourses" parameterType="hashmap"
+resultMap="CourseResult">
+	SELECT * FROM COURSES
+<!--if条件为真则<trim>会插入WHERE，并且移除紧跟WHERE后面的AND或OR-->
+<trim prefix="WHERE" prefixOverrides="AND | OR">
+<if test=" tutorId != null ">
+TUTOR_ID= #{tutorId}
+</if>
+<if test="courseName != null">
+AND name like #{courseName}
+</if>
+</trim>
+</select>
+
+(5)foreach循环（变量一个列表，构造AND，OR或IN）
+找到tutor_id为1,3,6的教师的课程，可以传递一个tutor_id列表，遍历列表动态构造SQL语句
+<select id="searchCoursesByTutors" parameterType="map"
+resultMap="CourseResult">
+SELECT * FROM COURSES
+<if test="tutorIds != null">
+<where>
+<!--注意parameterType，这是个很重要部分，类型是MAP，则按map解析，看看传进来的是不是有key为tutorIds，有的话就取出value，与外面类一对一-->
+<foreach item="tutorId" collection="tutorIds">
+OR tutor_id=#{tutorId}
+</foreach>
+</where>
+</if>
+</select>
+
+public interface CourseMapper { 
+	List<Course> searchCoursesByTutors(Map<String, Object> map); 
+}
+public void searchCoursesByTutors() {
+	Map<String, Object> map = new HashMap<String, Object>();
+	List<Integer> tutorIds = new ArrayList<Integer>();
+	tutorIds.add(1);
+	tutorIds.add(3);
+	tutorIds.add(6);
+	map.put("tutorIds", tutorIds);//放到map里，key必须和xml里的名字一样
+	CourseMapper mapper = sqlSession.getMapper(CourseMapper.class);
+	List<Course> courses = mapper.searchCoursesByTutors(map);//可以自动转换
+	for (Course course : courses) { System.out.println(course); }
+}
+
+foreach生成IN
+<select id="searchCoursesByTutors" parameterType="map" resultMap="CourseResult">
+	SELECT * FROM COURSES
+	<if test="tutorIds != null">
+		<where>
+		tutor_id IN
+		<!--注意(,)的选项，把结果放到括号，以逗号分割-->
+			<foreach item="tutorId" collection="tutorIds"
+			open="(" separator="," close=")">
+			#{tutorId}
+			</foreach>
+		</where>
+	</if>
+</select>
+
+(6)set条件
+<update id="updateStudent" parameterType="Student">
+	update students
+	<set>
+	<if test="name != null">name=#{name},</if>
+	<if test="email != null">email=#{email},</if>
+	<if test="phone != null">phone=#{phone},</if>
+	</set>
+	where stud_id=#{id}
+</update>
+if条件返回任何内容，如xxx，set都会插入set xxx，而且会删除末尾的逗号，比如，如果email!=null，set会移除掉email=#{email}后的逗号，生成set phone=#{phone}
+
+5. MyBatis cookbook
+(1)枚举
+MyBatis可以自动装填枚举类型，用EnumTypeHandler
+public enum Gender { FEMALE, MALE }
+public class Student {
+	private Integer id; 
+	private String name; 
+	private String email; 
+	private PhoneNumber phone; 
+	private Address address; 
+	private Gender gender; 
+	//setters and getters 
+}
+<insert id="insertStudent" parameterType="Student" useGeneratedKeys="true" keyProperty="id">
+ insert into students(name,email,addr_id, phone,gender)
+ values(#{name},#{email},#{address.addrId},#{phone},#{gender})
+</insert>
+执行insertStudent方法时，MyBatis会自动装填枚举名称，MALE，FEMAIL，存到gender列
+如果想存储0,1即按序存储则需要妹纸EnumOrdinalTypeHandler，不过一般不会这么用，依赖性高，一旦改了就不适用了，枚举不要依赖下表
+
+(2)BOLB CLOB
+CLOB（Character Large Object）
+BLOB(binary large object)
+
+CREATE TABLE USER_PICS ( 
+	ID INT(11) NOT NULL AUTO_INCREMENT, 
+	NAME VARCHAR(50) DEFAULT NULL, PIC BLOB, 
+	BIO LONGTEXT, 
+	PRIMARY KEY (ID) 
+) ENGINE=INNODB AUTO_INCREMENT=1 DEFAULT CHARSET=LATIN1;
+
+默认MyBatis把CLOB类型列映射到String类型，把BLOB列映射到byte[]类型上
+public class UserPic { 
+	private int id; 
+	private String name; 
+	private byte[] pic; 
+	private String bio; 
+	//setters & getters 
+}
+
+<insert id="insertUserPic" parameterType="UserPic">
+	INSERT INTO USER_PICS(NAME, PIC,BIO)
+	VALUES(#{name},#{pic},#{bio})
+</insert>
+<select id="getUserPic" parameterType="int" resultType="UserPic">
+	SELECT * FROM USER_PICS WHERE ID=#{id}
+</select>
+
+public void insertUserPic() {
+	byte[] pic = null;
+	try {
+		File file = new File("C:\\Images\\UserImg.jpg");
+		InputStream is = new FileInputStream(file);
+		pic = new byte[is.available()];
+		is.read(pic);
+		is.close();
+	} catch (FileNotFoundException e) {
+		e.printStackTrace();
+	} catch (IOException e) {
+		e.printStackTrace();
+	}
+	String name = "UserName";
+	String bio = "put some lenghty bio here";
+	UserPic userPic = new UserPic(0, name, pic , bio);
+	SqlSession sqlSession = MyBatisUtil.openSession();
+	try {
+		UserPicMapper mapper = sqlSession.getMapper(UserPicMapper.class);
+		mapper.insertUserPic(userPic);
+		sqlSession.commit();
+	} finally {
+		sqlSession.close();
+	}
+}
+
+public void getUserPic() {
+	UserPic userPic = null;
+	SqlSession sqlSession = MyBatisUtil.openSession();
+	try {
+		UserPicMapper mapper = sqlSession.getMapper(UserPicMapper.class);
+		userPic = mapper.getUserPic(1);
+	} finally {
+		sqlSession.close();
+	}
+	byte[] pic = userPic.getPic();
+	try {
+		OutputStream os = new FileOutputStream(new File("C:\\Images\\UserImage_FromDB.jpg"));
+		os.write(pic);
+		os.close();
+	} catch (FileNotFoundException e) {
+		e.printStackTrace();
+	} catch (IOException e) {
+		e.printStackTrace();
+	}
+}
+
+(3)传入多个参数
+可以用parameterType为map来传入HashMap，还可以直接传入多个参数：
+Public interface StudentMapper { 
+	List<Student> findAllStudentsByNameEmail(String name, String email); 
+}
+
+<select id="findAllStudentsByNameEmail" resultMap="StudentResult">
+	select stud_id, name,email, phone from Students
+	 where name=#{param1} and email=#{param2}
+</select>
+
+StudentMapper studentMapper = sqlSession.getMapper(StudentMapper. class); 
+studentMapper.findAllStudentsByNameEmail(name, email);
+
+(4)多行结果映射成Map
+多行记录以HashMap存储，使用记录列名为key，记录值为value的形式，可以用selectMap
+<select id=" findAllStudents" resultMap="StudentResult">
+ select * from Students 
+</select>
+//studId为key，Student对象为value，即主键为key
+Map<Integer, Student> studentMap = sqlSession.selectMap("com.mybatis3.mappers.StudentMapper.findAllStudents", "studId");
+
+(5)RowBounds结果分页
+海量数据，分页表示
+RowBounds对象用offset和limit参数来构建
+每页显示25条记录
+<select id="findAllStudents" resultMap="StudentResult">
+ select * from Students 
+</select>
+
+//第一页，用offset=25，limit=25展示第二页，第三页offset=50,limit=25
+int offset =0 , limit =25;
+RowBounds rowBounds = new RowBounds(offset, limit); 
+List<Student> = studentMapper.getStudents(rowBounds);
+
+(6)使用ResultSetHandler自定义结果集ResultSet处理
+自定义查询结果，如stud_id为key，name为value，而不是Student，MyBatis不支持resultMap配置将结果集映射为一个属性为key，其他属性为value，
+sqlSession.selectMap()可以返回给定列为key，value为整个对象的结果，但不能一个属性为key，其他属性为value
+通过传给sqlSession.select()一个ResultHandler实现，可以实现这个要求
+public interface ResultHandler { 
+	void handleResult(ResultContext context); 
+}
+
+public Map<Integer, String> getStudentIdNameMap() {
+	final Map<Integer, String> map = new HashMap<Integer, String>();
+	SqlSession sqlSession = MyBatisUtil.openSession();
+	try {
+		sqlSession.select("com.mybatis3.mappers.StudentMapper.findAllStudents",
+			new ResultHandler() {
+				@Override
+				public void handleResult(ResultContext context) {
+					Student student = (Student) context.getResultObject();
+					map.put(student.getStudId(), student.getName());
+				}
+			});
+	} finally {
+		sqlSession.close();
+	}
+	return map;
+}
+通过传给select自定义的ResultHandler可以改变select默认的结果
+
+(7)缓存
+应用程序为了提高性能，会把数据控中的数据加载到内存中，MyBatis对映射SELECT语句加载查询结果提供了缓存支持，默认启动一级缓存，如果使用同一个sqlSession接口对象调用了相同的select语句，则直接从缓存中返回，而不用再查一次数据库
+可以在SQL映射器XML配置文件中使用<cache />添加全局的二级缓存
+添加<cache />后：
+所有在映射语句文件中定义的<select>语句查询结果都会被缓存
+所有在映射语句文件中定义的<insert>,<update>和<delete>语句将会刷新缓存
+缓存根据最近最少被使用算法管理
+缓存不支持定时刷新
+缓存将存储1024个查询方法返回的列表或对象的引用
+缓存会被当做一个读写缓存，即检索出的对象不会被共享，并且可以被调用者安全地修改，不会被其他调用者干扰
+
+可以通过覆盖默认属性来自定义缓存：
+<cache eviction="FIFO" flushInterval="60000" size="512" readOnly="true"/>
+eviction：缓存移除机制，默认LRU，Least recently used，支持的方式：LRU，FIFO，SOFT（软引用），WEAK（弱引用）
+flushInterval:定义缓存刷新间隔，以毫秒计。默认不设置，所以布斯拥刷新间隔，缓存cache只有调用语句的时候刷新
+size:缓存中能容纳的最大元素个数，默认1024
+readOnly：一个制度的缓存会对所有调用者返回统一实例（实际是返回对象的引用），一个读写缓存将会返回对象的一份拷贝（通过序列化），默认情况下为false
+
+一个缓冲的配置和缓存实例被绑定到映射器配置文件所在的namespace上，所以相同namespace内的所有语句被绑定到一个缓存中
+默认映射语句的配置：
+<select ... flushCache="false" useCache="true"/> 
+<insert ... flushCache="true"/> 
+<update ... flushCache="true"/> 
+<delete ... flushCache="true"/>
+如果需要可以规定特定语句覆盖默认cache行为，如对一个select语句不用缓存，useCahce="false"
+MyBatis还支持其他第三方缓存（这个不用管，用默认就行）
+
+
+第四章 使用注解配置SQL映射器（了解）
+public interface StudentMapper { 
+	@Insert("INSERT INTO STUDENTS(STUD_ID,NAME,EMAIL,ADDR_ID, PHONE) VALUES(#{studId},#{name},#{email},#{address.addrId},#{phone})") 
+	int insertStudent(Student student); 
+}
+基本类似于上面的写法，觉得这个用的不多，因为MyBatis就是为了集中管理SQL语句，如果把SQL不放在xml里而是分散到各个类中，则不易管理
+
+
+第五章 与Spring集成
+MyBatis-Spring是MyBatis框架的子模块，用来与Spring框架对接
+1.在Spring中配置MyBatis
+Maven pom.xml
+<dependency>
+	<groupId>org.mybatis</groupId>
+	<artifactId>mybatis-spring</artifactId>
+	<version>1.2.0</version>
+</dependency>
+<dependency>
+	<groupId>org.springframework</groupId>
+	<artifactId>spring-context-support</artifactId>
+	<version>3.1.3.RELEASE</version>
+	<exclusions>
+		<exclusion>
+			<groupId>commons-logging</groupId>
+			<artifactId>commons-logging</artifactId>
+		</exclusion>
+	</exclusions>
+</dependency>
+<dependency>
+	<groupId>org.springframework</groupId>
+	<artifactId>spring-jdbc</artifactId>
+	<version>3.1.3.RELEASE</version>
+</dependency>
+<dependency>
+	<groupId>org.springframework</groupId>
+	<artifactId>spring-test</artifactId>
+	<version>3.1.3.RELEASE</version>
+	<scope>test</scope>
+</dependency>
+<dependency>
+	<groupId>org.aspectj</groupId> 
+	<artifactId>aspectjrt</artifactId> 
+	<version>1.6.8</version> 
+</dependency>
+<dependency> 
+	<groupId>org.aspectj</groupId> 
+	<artifactId>aspectjweaver</artifactId> 
+	<version>1.6.8</version> 
+</dependency>
+<dependency> 
+	<groupId>cglib</groupId> 
+	<artifactId>cglib-nodep</artifactId> 
+	<version>2.2</version> 
+</dependency>
+<dependency> 
+	<groupId>commons-dbcp</groupId> 
+	<artifactId>commons-dbcp</artifactId> 
+	<version>1.4</version> 
+</dependency>
+如果只用MyBatis，在每一个方法中，都要手动创建SqlSessionFactory对象，在重SqlSessionFactory对象中创建SqlSession，而且还要负责提交，回滚，关闭SqlSession对象。
+用MyBatis-Spring模块，可以在Spring配置文件ApplicationContext中配置MyBatis Beans，Spring会负责实例化SqlSessionFactory对象及创建SqlSession对象，并将其注入到DAO或者Service类中。而且可以用Spring基于注解的事务管理功能，不用自己在数据访问层写事务处理代码
+
+2. 配置MyBatis Beans
+ApplicationContext.xml
+<beans>
+	<bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+		<property name="driverClassName" value="com.mysql.jdbc.Driver" />
+		<property name="url" value="jdbc:mysql://localhost:3306/elearning" />
+		<property name="username" value="root" />
+		<property name="password" value="admin" />
+	</bean>
+	<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="typeAliases" value="com.mybatis3.domain.Student, com.mybatis3.domain.Tutor" />
+		<property name="typeAliasesPackage" value="com.mybatis3.domain" />
+		<property name="typeHandlers" value="com.mybatis3.typehandlers.PhoneTypeHandler" />
+		<property name="typeHandlersPackage" value="com.mybatis3.typehandlers" />
+		<property name="mapperLocations" value="classpath*:com/mybatis3/**/*.xml" />
+		<property name="configLocation" value="WEB-INF/mybatisconfig.xml" />
+	</bean>
+</beans>
+使用上述的 bean 定义，Spring 会使用如下配置属性创建一个 SqlSessionFactory 对象：
+dataSource:它引用了 dataSource bean
+typeAliases:它指定了一系列的完全限定名的类名列表，用逗号隔开，这些别名将通过默认的别名规则创建
+（将首字母小写的非无完全限定类名作为别名）。
+typeAliasesPackage:它指定了一系列包名列表，用逗号隔开，包内含有需要创建别名的 JavaBeans。
+typeHandlers:它指定了一系列的类型处理器类的完全限定名的类名列表，用逗号隔开。
+typeHandlersPackage: 它指定了一系列包名列表，用逗号隔开，包内含有需要被注册的类型处理器类。
+mapperLocations:它指定了 SQL 映射器 Mapper XML 配置文件的位置
+configLocation:它指定了 MyBatisSqlSessionFactory 配置文件所在的位置。
+
+3.使用SqlSession
+一旦 SqlSessionFactory bean 被配置，我们需要配置 SqlSessionTemplate bean，SqlSessionTemplate bean
+是一个线程安全的 Spring bean，我们可以从中获取到线程安全的 SqlSession 对象。由于 SqlSessionTemplate 提
+供线程安全的 SqlSession 对象，你可以在多个 Spring bean 实体对象中共享 SqlSessionTemplate 对象。从概念上
+看，SqlSessionTemplate 和 Spring 的 DAO 模块中的 JdbcTemplate 非常相似。
+<bean id="sqlSession" class="org.mybatis.spring.SqlSessionTemplate">
+	<constructor-arg index="0" ref="sqlSessionFactory" />
+</bean>
+
+//SqlSession的Factory之类都有Spring弄好了，直接用就行
+public class StudentDaoImpl implements StudentDao
+{
+	private SqlSession sqlSession;//SqlSession是接口，注入SqlSessionTemplate是它的实现类
+	public void setSqlSession(SqlSession session)//set注入，需要xml配置，这里没有写
+	{
+		this.sqlSession = session;
+	}
+	public void createStudent(Student student)
+	{
+		StudentMapper mapper =
+		this.sqlSession.getMapper(StudentMapper.class);
+		mapper.insertStudent(student);
+	}
+}
+
+还有另外一种注入 Sqlsession 对象的方法，即，通过拓展继承 SqlSessionDaoSupport。这种方式让我们可以在
+执行映射语句时，加入任何自定义的逻辑。
+<bean id="studentMapper" class="com.mybatis3.dao.StudentMapperImpl">
+	<property name="sqlSessionFactory" ref="sqlSessionFactory" />
+</bean>
+
+public class StudentMapperImpl extends SqlSessionDaoSupport 
+	implements StudentMapper
+{
+	public void createStudent(Student student) {
+		StudentMapper mapper =
+		getSqlSession().getMapper(StudentMapper.class);
+		mapper.insertAddress(student.getAddress());
+		//Custom logic
+		mapper.insertStudent(student);
+	}
+}
+在以上的这些方式中，我们注入了 SqlSession 对象，获取 Mapper 实例，然后执行映射语句。这里 Spring 会为我
+们提供一个线程安全的 SqlSession 对象，以及当方法结束后关闭 SqlSession 对象。
+然而，MyBatis-Spring 模块提供了更好的方式，我们可以不通过 SqlSession 获取映射器 Mapper，直接注射 Sql映射器 Mapper bean。我们下节将讨论它。
+
+4.使用映射器
+我们可以使用 MapperFactoryBean 将映射器 Mapper 接口配置成 Spring bean 实体。如下所示：
+<bean id="studentMapper" class="org.mybatis.spring.mapper.MapperFactoryBean">
+	<property name="mapperInterface" value="com.mybatis3.mappers. StudentMapper" />
+	<property name="sqlSessionFactory" ref="sqlSessionFactory" />
+</bean>
+
+public interface StudentMapper
+{
+	@Select("select stud_id as studId, name, email, phone from
+	students where stud_id=#{id}")
+	Student findStudentById(Integer id);
+}
+
+现在 StudentMapper bean 实体对象可以被注入到任意的 Spring bean 实体对象中并调用映射语句方法，如下所
+示：
+<bean id="studentService" class="com.mybatis3.services.StudentService">
+	<property name="studentMapper" ref="studentMapper" />
+</bean>
+
+public class StudentService
+{
+	private StudentMapper studentMapper;
+	public void setStudentMapper(StudentMapper studentMapper) {
+		this. studentMapper = studentMapper;
+	}
+	public void createStudent(Student student) {
+		this.studentMapper.insertStudent(student);
+	}
+}
+
+分别配置每一个映射器 Mapper 接口是一个非常单调的过程。我们可以使用 MapperScannerConfigurer 来扫描包
+（package）中的映射器 Mapper 接口，并自动地注册。
+<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+	<property name="basePackage" value="com.mybatis3.mappers" />
+</bean>
+
+如果映射器 Mapper 接口在不同的包(package)中，你可以为 basePackage 属性指定一个以逗号分隔的包名列表。
+MyBatis-Spring-1.2.0 介绍了两种新的扫描映射器 Mapper 接口的方法：
+ 使用<mybatis:scan/>元素
+ 使用@MapperScan 注解（需 Spring3.1+版本）
+
+5.Mapper扫描
+(1)<mybatis:scan />
+<mybatis:scan>元素将在特定的以逗号分隔的包名列表中搜索映射器 Mapper 接口。使用这个新的 MyBatisSpring
+名空间你需要添加以下的 schema 声明：
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:mybatis="http://mybatis.org/schema/mybatis-spring"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+		http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://mybatis.org/schema/mybatis-spring
+		http://mybatis.org/schema/mybatis-spring.xsd">
+	<!--应该主要是这个-->
+	<mybatis:scan base-package="com.mybatis3.mappers" />
+</beans>
+<mybatis:scan>元素提供了下列的属性来自定义扫描过程：
+annotation: 扫描器将注册所有的在 base-package 包内并且匹配指定注解的映射器 Mapper 接口。
+factory-ref: 当 Spring 上 下 文 中 有 多 个 SqlSessionFactory 实 例 时 ， 需 要 指 定 某 一 特 定 的
+SqlSessionFactory 来创建映射器 Mapper 接口。正常情况下，只有应用程序中有一个以上的数据源
+才会使用。
+marker-interface: 扫描器将注册在 base-package 包中的并且继承了特定的接口类的映射器 Mapper 接口。
+template-ref: 当 Spring 上下文中有多个 SqlSessionTemplate 实例时，需要指定某一特定的
+SqlSessionTemplate 来创建映射器 Mapper 接口。正常情况下，只有应用程序中有一个以上的数据源
+才会使用。
+name-generator:BeannameGenerator 类的完全限定类名，用来命名检测到的组件。
+
+(2)MapperScan
+Spring 框架 3.x+版本支持使用@Configuration 和@Bean 注解来提供基于 Java 的配置。如果你倾向于使用基于
+Java 的配置，你可以使用@MapperScan 注解来扫描映射器 Mapper 接口。@MapperScan 和<mybatis:scan/>工作方式
+相同，并且也提供了对应的自定义选项。
+@Configuration
+@MapperScan("com.mybatis3.mappers")
+public class AppConfig
+{
+	@Bean
+	public DataSource dataSource() {
+		return new PooledDataSource("com.mysql.jdbc.Driver",
+		"jdbc:mysql://localhost:3306/elearning", "root", "admin");
+	}
+	@Bean
+	public SqlSessionFactory sqlSessionFactory() throws Exception {
+		SqlSessionFactoryBeansessionFactory = new SqlSessionFactoryBean();
+		sessionFactory.setDataSource(dataSource());
+		return sessionFactory.getObject();
+	}
+}
+@MapperScan 注解有以下属性供自定义扫描过程使用:
+annotationClass: 扫描器将注册所有的在 base-package 包内并且匹配指定注解的映射器 Mapper 接口。
+markerInterface: 扫描器将注册在 base-package 包中的并且继承了特定的接口类的映射器 Mapper 接口
+sqlSessionFactoryRef:当 Spring 上下 文 中有一个以上的 SqlSesssionFactory 时，用来指定特 定
+SqlSessionFactory
+sqlSessionTemplateRef: 当 Spring 上下文中有一个以上的 sqlSessionTemplate 时，用来指定特定
+sqlSessionTemplate
+nameGenerator:BeanNameGenerator 类用来命名在 Spring 容器内检测到的组件。
+basePackageClasses:basePackages()的类型安全的替代品。包内的每一个类都会被扫描。
+basePackages:扫描器扫描的基包，扫描器会扫描内部的 Mapper 接口。注意包内的至少有一个方法声明的才会被
+注册。具体类将会被忽略。
+
+与注入 Sqlsession 相比，更推荐使用注入 Mapper，因为它摆脱了对MyBatis API 的依赖。
+(注：还是先考虑正确性，先用熟悉的明显的方法，如果某个方法不熟悉不肯定，则不要用，因为容易有坑)
+
+6.用Spring进行事务管理
+只使用 MyBatis，你需要写事务控制相关代码，如提交或者回退数据库操作。
+public Student createStudent(Student student)
+{
+	SqlSession sqlSession = MyBatisUtil.getSqlSessionFactory().
+	openSession();
+	try
+	{
+		StudentMapper mapper =
+		sqlSession.getMapper(StudentMapper.class);
+		mapper.insertAddress(student.getAddress());
+		mapper.insertStudent(student);
+		sqlSession.commit();
+		return student;
+	}
+	catch (Exception e)
+	{
+		sqlSession.rollback();
+		throw new RuntimeException(e);
+	}
+	finally
+	{
+		sqlSession.close();
+	}
+}
+
+我们可以使用 Spring 的基于注解的事务处理机制来避免书写上述的每个方法中控制事务的冗余代码。
+为了能使用 Spring 的事务管理功能，我们需要在 Spring 应用上下文中配置 TransactionManager bean 实体对象：
+<bean id="transactionManager"
+class="org.springframework.jdbc. datasource.DataSourceTransactionManager">
+	<property name="dataSource" ref="dataSource" />
+</bean>
+
+在 Spring 中使用基于注解的事务管理特性，如下：
+<tx:annotation-driven transaction-manager="transactionManager"/>
+现在你可以在 Spring service bean 上使用@Transactional 注解，表示在此 service 中的每一个方法都应该在
+一个事务中运行。如果方法成功运行完毕，Spring 会提交操作。如果有运行期异常发生，则会执行回滚操作。另外，
+Spring 会将 MyBatis 的异常转换成合适的 DataAccessExceptions，这样会为特定错误上提供额外的信息。
+@Service
+@Transactional
+public class StudentService
+{
+	@Autowired
+	private StudentMapper studentMapper;
+	public Student createStudent(Student student)
+	{
+		studentMapper.insertAddress(student.getAddress());
+		if(student.getName().equalsIgnoreCase(""))
+		{
+			throw new RuntimeException("Student name should not be empty.");
+		}
+		studentMapper.insertStudent(student);
+		return student;
+	}
+}
+
+下面是一个 Spring 的 applicationContext.xml 完成配置：
+<beans>
+	<context:annotation-config />
+	<context:component-scan base-package="com.mybatis3" />
+	<context:property-placeholder location="classpath:application.properties" />
+	<tx:annotation-driven transaction-manager="transactionManager" />
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.mybatis3.mappers" />
+	</bean>
+	<bean id="sqlSession" class="org.mybatis.spring.SqlSessionTemplate">
+		<constructor-arg index="0" ref="sqlSessionFactory" />
+	</bean>
+	<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="typeAliases" value="com.mybatis3.domain.Student,com.mybatis3.domain.Tutor" />
+		<property name="typeAliasesPackage" value="com.mybatis3.domain" />
+		<property name="typeHandlers" value="com.mybatis3.typehandlers.PhoneTypeHandler" />
+		<property name="typeHandlersPackage" value="com.mybatis3.typehandlers" />
+		<property name="mapperLocations" value="classpath*:com/mybatis3/**/*.xml" />
+	</bean>
+	<bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+		<property name="driverClassName" value="${jdbc.driverClassName}"></property>
+		<property name="url" value="${jdbc.url}"></property>
+		<property name="username" value="${jdbc.username}"></property>
+		<property name="password" value="${jdbc.password}"></property>
+	</bean>
+</beans>
+
+一个独立的测试客户端来测试 StudentService：
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(locations = "classpath:applicationContext.xml")
+public class StudentServiceTest {
+	@Autowired
+	private StudentService studentService;
+	@Test
+	public void testCreateStudent() {
+		Address address = new Address(0, "Quaker RidgeRd.", "Bethel", "Brooklyn", "06801", "USA");
+		Student stud = new Student();
+		long ts = System.currentTimeMillis();
+		stud.setName("stud_" + ts);
+		stud.setEmail("stud_" + ts + "@gmail.com");
+		stud.setAddress(address);
+		Student student = studentService.createStudent(stud);
+		assertNotNull(student);
+		assertEquals("stud_" + ts, student.getName());
+		assertEquals("stud_" + ts + "@gmail.com", student.getEmail());
+		System.err.println("CreatedStudent: " + student);
+	}
+	@Test(expected = DataAccessException.class)
+	public void testCreateStudentForException() {
+		Address address = new Address(0, "Quaker RidgeRd.", "Bethel", "Brooklyn", "06801", "USA");
+		Student stud = new Student();
+		long ts = System.currentTimeMillis();
+		stud.setName("Timothy");
+		stud.setEmail("stud_" + ts + "@gmail.com");
+		stud.setAddress(address);
+		studentService.createStudent(stud);
+		fail("You should not reach here");
+	}
+
+}
+这里在 testCreateStudent()方法中，我们为 Address 和 Student 赋上了合适的数据，所以 Address 和 Student
+会被分别插入到表 ADDRESSES 和 STUDENTS 中。在 testCreateStudentForException()方法我们设置了名字为
+Timothy，该名称在数据库中已经存在了，所以当你尝试将此 student 记录插入到数据库中，MySQL 会抛出一个 UNIQUE
+KEY 冲突的异常，Spring 会将此异常转换成 DataAccessException 异常，并且将插入 ADDRESSES 表中的数据回滚
+（rollback）掉。
+
+/*******************************The End*******************************/

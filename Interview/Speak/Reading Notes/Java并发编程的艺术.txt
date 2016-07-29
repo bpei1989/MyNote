@@ -219,7 +219,433 @@ synchronzied(对象) {
 
 PipedOutputStream PipedInputStream，管道，了解
 
+join是如果线程A执行了B.join()，则A会等待B终止后才从该函数返回，继续执行（注：一般是自己new出的线程，Thread B=new xxx）
+（注：wait和join一般都是用有时间的，防止无限期等待）
 
+ThreadLocal（线程变量）
+一个以ThreadLocal对象为键，任意对象为值得存储结构，附带在线程=上，一个线程可以根据一个ThreadLocal对象查找到绑定在该线程上的值
+set(xxx),get()
+private static final ThreadLocal<Long> TIME = new ThreadLocal<Long>();
+TIME.set(System.currentTimeMillis());
+TIME.get();
 
+3.实例
+(1)等待超时
+基本逻辑
+public synchronized Object get(long mills) throws InterruptedException {
+	long future = System.currentTimeMills() + mills;
+	long remaining = mills;
+	while((result == null) && remaining > 0) {
+	//从wait返回可能是超时，可能是notify，返回后需要检查剩余时间
+		wait(remaining);
+		remaining = future - System.currentTimeMills();
+	}
+	return result;
+}
+常用，因为能防止无限制阻塞等待
+result判断是否为null也很值得注意，因为不光是超时，而且是没有预期结果才会返回，如果有的话就直接处理了
 
+数据库连接池Demo
+1000ms无法得到连接就返回超时
 
+ConnectionPool.java
+public class ConnectionPool {
+	private LinkedList<Connection> pool = new LinkedList<Connection>();
+
+	public ConnectionPool(int initialSize) {
+		if (initialSize > 0) {
+			for (int i=0; i<initialSize; i++) {
+				pool.addLast(ConnectionDriver.createConnection);//ConnectionDriver是生成连接的类
+			}
+		}
+	}
+
+	public void releaseConnection(Connection connection) {
+		if (connection != null) {
+			synchronized(pool) {//对Object做同步，即需要操作临界区的对象
+				pool.addLast(connection);
+				pool.notifyAll();//释放连接通知其它消费者知道连接池中多了一个连接
+			}
+		}
+	}
+
+//在mills内无法取得连接，则返回null
+	public Connection fetchConnection(long mills) throws InterruptedException {
+		synchronized(pool) {//能synchronized对象就不要synchronized方法，减少同步的区域，增加效率
+			if (mills <= 0) {
+				while (pool.isEmpty()) {
+					pool.wait();
+				}
+				return pool.removeFirst();
+			} else {
+				long future = System.currentTimeMills() + mills;
+				long remaining = mills;
+				while (pool.isEmpty() && remaining > 0) {
+					pool.wait(remaining);//从wait返回可能是超时，可能是notify，返回后需要检查剩余时间
+					remaining = future - System.currentTimeMillis();
+				}
+				Connection result = null;
+				//从while循环跳出来可能是获取锁，也可能是超时，都可以试图获取连接
+				if (!pool.isEmpty()) {
+					result = pool.removeFirst();
+				}
+				return result;
+			}
+		}
+	}
+}
+
+ConnectionDriver.java
+public class ConnectionDriver {
+//动态代理，TargetObj，执行的是该类中的方法,必须implements InvocationHandler
+	static class ConnectionHandler implements InvocationHandler {
+		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+			if (method.getName().equals("commit")) {
+				TimeUnit.MILLISECONDS.sleep(100);
+			}
+			return null;
+		}
+	}
+
+	//创建Connectino接口的代理，在commit时睡眠100毫秒，java.sql.Connection
+	public static final Connection createConnection() {
+	//动态代理，看后面的详细介绍
+		return (Connection) Proxy.newProxyInstance(ConnectionDriver.class.getClassLoader(),
+		new Class<?>[] {Connection.class}, new ConnectionHandler());
+	}
+}
+
+ConnectionPoolTest.java
+//模仿客户端调用
+public class ConnectionPoolTest {
+	static ConnectionPool pool = new ConnectionPool(10);
+	static CountDownLatch start = new CountDonwLatch(1);//保证所有客户端线程同时启动
+	static CountDownLatch end;
+
+	public static void main(String[] args) throws Exception {
+		int threadCount = 10;
+		end = new CountDownLatch(threadCount);//main需要等到客户端线程结束才能继续
+		int count = 20;
+		AtomicInteger got = new AtomicInteger();
+		AtomicInteger notGot = new AtomicInteger();
+		for (int i=0; i< threadCount; i++) {
+			Thread thead = new Thread(new ConnectionRunner(count, got, notGot)), 
+			"ConnectionRunnerThread");
+			thread.start();
+		}
+		start.countDown();
+		end.await();
+		System.out.println("total invoke: " + (threadCount * count));
+		System.out.println("got connection: " + got);
+		System.out.println("not got connection: " + notGot);
+	}
+
+	static class ConnectionRunner implements Runnable {
+		int count;
+		AtomicInteger got;
+		AtomicInteger notGot;
+
+		public ConnectionRunner(int count, AtomicInteger got, AtomicInteger notGot) {
+			this.count = count;
+			this.got = got;
+			this.notGot = notGot;
+
+			public ConnectionRunner(int count, AtomicInteger got, AtomicInteger notGot) {
+				this.count = count;
+				this.got = got;
+				this.notGot = notGot;
+			}
+
+			public void run() {
+				try {
+					start.await();//等待countDown发出的信号
+				} catch (Exception ex) {
+				}
+				while (count > 0) {
+					try {
+						Connection connection = pool.fetchConnection(1000);
+						if (connection != null) {
+							try {
+								connection.createStatement();
+								connection.commit();
+							} finally {
+								pool.releaseConnection(connection);
+								got.incrementAndGet();
+							}
+						} else {
+							notGot.incrementAndGet();
+						}
+					} catch (Exception ex) {
+
+					} finally {
+						count--;
+					}
+				}
+			}
+			end.countDown();
+		}
+	}
+}
+注：其中CountDownLatch，finally释放，AtomicInteger,线程要命名，动态代理，await，result==null&&remaining>0等都是需要注意的地方
+
+动态代理：
+JDK动态代理中包含一个类和一个接口： 
+InvocationHandler接口： 
+public interface InvocationHandler { 
+public Object invoke(Object proxy,Method method,Object[] args) throws Throwable; 
+} 
+参数说明： 
+Object proxy：指被代理的对象。 
+Method method：要调用的方法 
+Object[] args：方法调用时所需要的参数 
+
+可以将InvocationHandler接口的子类想象成一个代理的最终操作类，替换掉ProxySubject。 
+
+Proxy类： 
+Proxy类是专门完成代理的操作类，可以通过此类为一个或多个接口动态地生成实现类，此类提供了如下的操作方法： 
+public static Object newProxyInstance(ClassLoader loader, Class<?>[] interfaces, 
+InvocationHandler h) 
+                               throws IllegalArgumentException 
+参数说明： 
+ClassLoader loader：类加载器 
+Class<?>[] interfaces：得到全部的接口 
+InvocationHandler h：得到InvocationHandler接口的子类实例 
+
+Ps:类加载器 
+在Proxy类中的newProxyInstance（）方法中需要一个ClassLoader类的实例，ClassLoader实际上对应的是类加载器，在Java中主要有一下三种类加载器; 
+Booststrap ClassLoader：此加载器采用C++编写，一般开发中是看不到的； 
+Extendsion ClassLoader：用来进行扩展类的加载，一般对应的是jre\lib\ext目录中的类; 
+AppClassLoader：(默认)加载classpath指定的类，是最常使用的是一种加载器。 
+
+动态代理 
+与静态代理（设计模式中的代理模式，他的特征是代理类与委托类有同样的接口，代理类主要负责为委托类预处理消息、过滤消息、把消息转发给委托类）类对照的是动态代理类，动态代理类的字节码在程序运行时由Java反射机制动态生成，无需程序员手工编写它的源代码。动态代理类不仅简化了编程工作，而且提高了软件系统的可扩展性，因为Java 反射机制可以生成任意类型的动态代理类。java.lang.reflect 包中的Proxy类和InvocationHandler 接口提供了生成动态代理类的能力。 
+
+动态代理示例: 
+1、BookFacade.java 
+
+package net.battier.dao;  
+  
+public interface BookFacade {  
+    public void addBook();  
+}  
+ 
+
+2、BookFacadeImpl.java 
+
+package net.battier.dao.impl;  
+  
+import net.battier.dao.BookFacade;  
+  
+public class BookFacadeImpl implements BookFacade {  
+  
+    @Override  
+    public void addBook() {  
+        System.out.println("增加图书方法。。。");  
+    }  
+  
+}  
+  
+、BookFacadeProxy.java  
+  
+package net.battier.proxy;  
+  
+import java.lang.reflect.InvocationHandler;  
+import java.lang.reflect.Method;  
+import java.lang.reflect.Proxy;  
+  
+/** 
+ * JDK动态代理代理类 
+ *  
+ * @author student 
+ *  
+ */  
+public class BookFacadeProxy implements InvocationHandler {  
+    private Object target;  
+    /** 
+     * 绑定委托对象并返回一个代理类 
+     * @param target 
+     * @return 
+     */  
+    public Object bind(Object target) {  
+        this.target = target;  
+        //取得代理对象  
+        return Proxy.newProxyInstance(target.getClass().getClassLoader(),  
+                target.getClass().getInterfaces(), this);   //要绑定接口(这是一个缺陷，cglib弥补了这一缺陷)  
+    }  
+  
+    @Override  
+    /** 
+     * 调用方法 
+     */  
+    public Object invoke(Object proxy, Method method, Object[] args)  
+            throws Throwable {  
+        Object result=null;  
+        System.out.println("事物开始");  
+        //执行方法  
+        result=method.invoke(target, args);  
+        System.out.println("事物结束");  
+        return result;  
+    }  
+  
+}  
+ 
+
+3、TestProxy.java 
+
+package net.battier.test;  
+  
+import net.battier.dao.BookFacade;  
+import net.battier.dao.impl.BookFacadeImpl;  
+import net.battier.proxy.BookFacadeProxy;  
+  
+public class TestProxy {  
+  
+    public static void main(String[] args) {  
+        BookFacadeProxy proxy = new BookFacadeProxy();  
+        BookFacade bookProxy = (BookFacade) proxy.bind(new BookFacadeImpl());  
+        bookProxy.addBook();  
+    }  
+  
+}  
+
+但是，JDK的动态代理依靠接口实现，如果有些类并没有实现接口，则不能使用JDK代理，这就要使用cglib动态代理了。 
+
+Cglib动态代理 
+JDK的动态代理机制只能代理实现了接口的类，而不能实现接口的类就不能实现JDK的动态代理，cglib是针对类来实现代理的，他的原理是对指定的目标类生成一个子类，并覆盖其中方法实现增强，但因为采用的是继承，所以不能对final修饰的类进行代理。 
+示例 
+1、BookFacadeCglib.java 
+
+package net.battier.dao;  
+  
+public interface BookFacade {  
+    public void addBook();  
+}  
+ 
+
+2、BookCadeImpl1.java 
+
+package net.battier.dao.impl;  
+  
+/** 
+ * 这个是没有实现接口的实现类 
+ *  
+ * @author student 
+ *  
+ */  
+public class BookFacadeImpl1 {  
+    public void addBook() {  
+        System.out.println("增加图书的普通方法...");  
+    }  
+}  
+
+3、BookFacadeProxy.java 
+
+package net.battier.proxy;  
+  
+import java.lang.reflect.Method;  
+  
+import net.sf.cglib.proxy.Enhancer;  
+import net.sf.cglib.proxy.MethodInterceptor;  
+import net.sf.cglib.proxy.MethodProxy;  
+  
+/** 
+ * 使用cglib动态代理 
+ *  
+ * @author student 
+ *  
+ */  
+public class BookFacadeCglib implements MethodInterceptor {  
+    private Object target;  
+  
+    /** 
+     * 创建代理对象 
+     *  
+     * @param target 
+     * @return 
+     */  
+    public Object getInstance(Object target) {  
+        this.target = target;  
+        Enhancer enhancer = new Enhancer();  
+        enhancer.setSuperclass(this.target.getClass());  
+        // 回调方法  
+        enhancer.setCallback(this);  
+        // 创建代理对象  
+        return enhancer.create();  
+    }  
+  
+    @Override  
+    // 回调方法  
+    public Object intercept(Object obj, Method method, Object[] args,  
+            MethodProxy proxy) throws Throwable {  
+        System.out.println("事物开始");  
+        proxy.invokeSuper(obj, args);  
+        System.out.println("事物结束");  
+        return null;  
+  
+  
+    }  
+  
+}  
+
+4、TestCglib.java 
+
+package net.battier.test;  
+  
+import net.battier.dao.impl.BookFacadeImpl1;  
+import net.battier.proxy.BookFacadeCglib;  
+  
+public class TestCglib {  
+      
+    public static void main(String[] args) {  
+        BookFacadeCglib cglib=new BookFacadeCglib();  
+        BookFacadeImpl1 bookCglib=(BookFacadeImpl1)cglib.getInstance(new BookFacadeImpl1());  
+        bookCglib.addBook();  
+    }  
+}  
+
+(2)线程池
+ThreadPool.java
+public interface ThreadPool<Job extends Runnable> {//泛型
+	void execute(Job job);
+	void shutdown();
+	void addWorkers(int num);
+	void removeWork(int num);
+	int getJobsize();
+}
+客户端通过execute(Job)把Job提交到线程池执行，而客户端也不用等Job的执行完成，还有对worker的操作和shutdown操作。Worker代表一个重复执行Job的线程，而每个由客户端提交的Job豆浆进入到一个工作队列中等待工作者线程的处理
+
+public class DefaultThreadPool<Job extends Runnable> implements ThreadPool<Job> {
+	private static final int MAX_WORKER_NUMBERS = 10;
+	private static final int DEFAULT_WORKER_NUMBERS = 5;
+	private static final int MIN_WORKER_NUMBERS = 1;
+	private final LinkedList<Job> jobs = new LinkedList<Job>();//这块由后面的访问函数保证synchronized
+	private final List<Worker> workers = Collections.synchronizedList(new ArrayList<Worker>());
+	private int workerNum = DEFAULT_WORKER_NUMBERS;
+	private AtomicLong threadNum = new AtomicLong();
+
+	public DefaultThreadPool() {
+		initializeWorkers(DEFAULT_WORKER_NUMBERS);
+	}
+
+	public DefaultThreadPool(int num) {
+		workNum = num > MAX_WORKER_NUMBERS ? MAX_WORKER_NUMBERS : num < MIN_WORKER_NUMBERS ? MIN_WORKER_NUMBERS : num;
+		initializeWorkers(workNum);
+	}
+
+	public void execute(Job job) {
+		if (job != null) {
+			synchronized(jobs) {//job队列
+				jobs.addLast(job);
+				jobs.notify();//注意需要notify等待的线程
+			}
+		}
+	}
+
+	public void shutdown() {
+		for (Worker worker : workers) {
+			worker.shutdown();
+		}
+	}
+
+	
+}
