@@ -647,5 +647,14 @@ public class DefaultThreadPool<Job extends Runnable> implements ThreadPool<Job> 
 		}
 	}
 
-	
+	public void addWorkers(int num) {
+		synchronized (jobs) {
+			//不能超过最大容量
+			if (num + this.workNum > MAX_WORKER_NUMBERS) {
+				num = MAX_WORKER_NUMBERS - this.workerNum;
+			}
+			initializeWorkers(num);
+			this.workerNum += num;
+		}
+	}
 }
