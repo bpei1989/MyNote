@@ -1,0 +1,758 @@
+第八章 Spring @MVC
+1.建立一个简单的Web App
+Controller参数类型：
+• HttpServletRequest or HttpServleResponse：原始的Servlet，直接操控Servlet
+• @RequestParam：请求参数
+• @ModelAttribute：Model属性 
+• @CookieValue： request中的Cookie
+• Map or ModelMap： Controller向Map或ModelMap中添加属性
+• Errors or BindingResult, for the handler method to access the binding and
+validation result for the command object
+• SessionStatus：表明Session状态
+(1)Maven和目录结构
+<dependency>
+ <groupId>org.springframework</groupId>
+ <artifactId>spring-webmvc</artifactId>
+ <version>${spring.version}</version>
+</dependency>
+<dependency>
+ <groupId>org.springframework</groupId>
+ <artifactId>spring-web</artifactId>
+ <version>${spring.version}</version>
+</dependency> 
+
+court/
+ css/
+   images/
+   WEB-INF/
+     classes/
+     lib/*.jar
+     jsp/
+        welcome.jsp
+        reservationQuery.jsp
+ court-service.xml
+ court-servlet.xml
+ web.xml
+
+(2)配置文件
+DispatcherServlet（court-servlet.xml）：
+<web-app version="2.4" xmlns="http://java.sun.com/xml/ns/j2ee"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee
+ http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd">
+ <display-name>Court Reservation System</display-name>
+ <servlet>
+ <servlet-name>court</servlet-name>
+ <servlet-class>
+ org.springframework.web.servlet.DispatcherServlet
+ </servlet-class>
+ <load-on-startup>1</load-on-startup>
+ </servlet>
+ <servlet-mapping>
+ <servlet-name>court</servlet-name>
+ <url-pattern>/</url-pattern>
+ </servlet-mapping>
+</web-app> 
+
+court-service.xml
+<beans xmlns="http://www.springframework.org/schema/beans"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.springframework.org/schema/beans
+ http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+ <bean id="reservationService"
+ class="com.apress.springrecipes.court.service.ReservationServiceImpl" />
+</beans>
+
+/WEB-INF/applicationContext.xml
+<web-app ...>
+ <context-param>
+ <param-name>contextConfigLocation</param-name>
+ <param-value>/WEB-INF/court-service.xml</param-value>
+ </context-param>
+ <listener>
+ <listener-class>
+ org.springframework.web.context.ContextLoaderListener
+ </listener-class>
+ </listener>
+ ...
+</web-app> 
+
+(2)Spring MVC注解扫描（<context:component-scan>）
+ court-servlet.xml 
+<beans xmlns="http://www.springframework.org/schema/beans"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xmlns:context="http://www.springframework.org/schema/context"
+ xsi:schemaLocation="http://www.springframework.org/schema/beans
+ http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+ http://www.springframework.org/schema/context
+ http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+ <context:component-scan
+ base-package="com.apress.springrecipes.court.web" />
+ <bean class="org.springframework.web.servlet.mvc.annotation.
+ DefaultAnnotationHandlerMapping" />
+ <bean class="org.springframework.web.servlet.mvc.annotation.
+ AnnotationMethodHandlerAdapter" />
+</beans> 
+
+(3)Controllers
+package com.apress.springrecipes.court.web;
+...
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.servlet.ModelAndView;
+import org.springframework.ui.Model; 
+
+@Controller
+@RequestMapping("/welcome")
+public class WelcomeController {
+ @RequestMapping(method = RequestMethod.GET)
+ public String welcome(Model model) {
+ Date today = new Date();
+ model.addAttribute("today", today);
+ return "welcome";
+ }
+} 
+@Controller
+public class WelcomeController {
+@RequestMapping(value = "/welcome", method=RequestMethod.GET)
+public String welcome(Model model) { 
+
+package com.apress.springrecipes.court.web;
+...
+import com.apress.springrecipes.court.domain.Reservation;
+import com.apress.springrecipes.court.service.ReservationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.ui.Model;
+@Controller
+@RequestMapping("/reservationQuery")
+public class ReservationQueryController {
+ private ReservationService reservationService;
+ @Autowired
+ public void ReservationQueryController(ReservationService reservationService) {
+ this.reservationService = reservationService;
+ }
+ @RequestMapping(method = RequestMethod.GET)
+ public void setupForm() {
+ }
+ @RequestMapping(method = RequestMethod.POST)
+ public String sumbitForm(@RequestParam("courtName") String courtName,
+ Model model) {
+ List<Reservation> reservations = java.util.Collections.emptyList();
+ if (courtName != null) {
+ reservations = reservationService.query(courtName);
+ }
+ model.addAttribute("reservations", reservations);
+ return "reservationQuery";
+ }
+} 
+
+(3)Views
+配置ViewResolver
+<bean class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+ <property name="prefix" value="/WEB-INF/jsp/" />
+ <property name="suffix" value=".jsp" />
+</bean>
+
+
+2.@RequestMapping
+(1) Mapping request by method
+@Controller
+public class MemberController {
+ private MemberService memberService;
+ @Autowired
+ public MemberController(MemberService memberService) {
+ this.memberService = memberService;
+ }
+ @RequestMapping("/member/add")
+ public String addMember(Model model) {
+ model.addAttribute("member", new Member());
+ model.addAttribute("guests", memberService.list());
+ return "memberList";
+ }
+
+ @RequestMapping(value={"/member/remove","/member/delete"},
+ method=RequestMethod.GET)
+ public String removeMember(
+ @RequestParam("memberName") String memberName) {
+ memberService.remove(memberName);
+ return "redirect:";
+ }
+}
+
+(2)Mapping request by class
+整个class为基准，/member/，内部的方法都是基于这个路径
+@Controller
+@RequestMapping("/member/*")
+public class MemberController {
+ private MemberService memberService;
+ @Autowired
+ public MemberController(MemberService memberService) {
+ this.memberService = memberService;
+ }
+ @RequestMapping("add")
+ public String addMember(Model model) {
+ model.addAttribute("member", new Member());
+ model.addAttribute("guests", memberService.list());
+ return "memberList";
+ }
+ @RequestMapping(value={"remove","delete"},
+ method=RequestMethod.GET)
+ public String removeMember(
+ @RequestParam("memberName") String memberName) {
+ memberService.remove(memberName);
+ return "redirect:";
+ }
+ @RequestMapping("display/{user}")
+ public String removeMember(
+ @RequestParam("memberName") String memberName,
+ @PathVariable("user") String user) {
+ …..
+ } 
+
+ @RequestMapping
+ public void memberList() {
+ …..
+ }
+ public void memberLogic(String memberName) {
+ …..
+ }
+} 
+
+(3)Mapping request by HTTP type
+@RequestMapping(method = RequestMethod.POST)
+public String submitForm(@ModelAttribute("member") Member member,
+ BindingResult result, Model model) {
+…..
+} 
+
+@RequestMapping(value= "processUser" method = RequestMethod.POST)
+public String submitForm(@ModelAttribute("member") Member member,
+ BindingResult result, Model model) {
+…..
+} 
+八种HTTP request 类型: HEAD, GET, POST, PUT, DELETE, TRACE, OPTIONS，CONNECT
+
+3.拦截器
+Spring MVC支持拦截request，并通过handler interceptors加pre-handling，post-handling
+每个handler interceptor必须实现HandlerInterceptor接口，包括方法：preHandle(), postHandle(), and afterCompletion().
+第一个和第二个是在请求前和请求后，第三个可以进入返回的ModelAndView对象，修改其中的Attributes
+
+package com.apress.springrecipes.court.web;
+...
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.ModelAndView;
+public class MeasurementInterceptor implements HandlerInterceptor {
+//进入DispatchServlet之前
+ public boolean preHandle(HttpServletRequest request,
+ HttpServletResponse response, Object handler) throws Exception {
+	 long startTime = System.currentTimeMillis();
+	 request.setAttribute("startTime", startTime);
+	 return true;
+ }
+ //DispatchServlet返回之后
+ public void postHandle(HttpServletRequest request,
+ HttpServletResponse response, Object handler,
+ ModelAndView modelAndView) throws Exception {
+	 long startTime = (Long) request.getAttribute("startTime");
+	 request.removeAttribute("startTime");
+	 long endTime = System.currentTimeMillis();
+	 modelAndView.addObject("handlingTime", endTime - startTime);
+ }
+ //postHandle之后
+ public void afterCompletion(HttpServletRequest request,
+ HttpServletResponse response, Object handler, Exception ex)
+ throws Exception {
+ }
+} 
+
+还可以extends HandlerInterceptorAdapter，这个方法已经实现接口的各个方法，只需要重载需要的就行，上面的例子afterCompletion虽然不需要但还是得写在那
+package com.apress.springrecipes.court.web;
+...
+import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
+public class MeasurementInterceptor extends HandlerInterceptorAdapter {
+ public boolean preHandle(HttpServletRequest request,
+ HttpServletResponse response, Object handler) throws Exception {
+ ...
+ }
+ public void postHandle(HttpServletRequest request,
+ HttpServletResponse response, Object handler,
+ ModelAndView modelAndView) throws Exception {
+ ...
+ }
+} 
+
+拦截器注册在DefaultAnnotationHandlerMapping bean
+<beans ...>
+ ...
+ <bean id="measurementInterceptor"
+ 	class="com.apress.springrecipes.court.web.MeasurementInterceptor" />
+ <bean class="org.springframework.web.servlet.mvc.annotation.DefaultAnnotationHandlerMapping">
+ 	<property name="interceptors">
+ 		<list>
+ 			<ref bean="measurementInterceptor" />
+ 		</list>
+ 	</property>
+ 	...
+ </bean>
+</beans> 
+
+前端：
+<html>
+<head>
+<title>Welcome</title>
+</head>
+<body>
+...
+<hr />
+Handling time : ${handlingTime} ms
+</html>
+
+DefaultAnnotationHandlerMapping会把拦截器应用到所有有@Controller注解的类上，如果想用到具体路径，则需要一个spring-plugins
+<beans ...>
+ ...
+ <bean id="measurementInterceptor"
+ class="com.apress.springrecipes.court.web.MeasurementInterceptor" />
+
+ <!--summaryReportInterceptor-->
+ <bean id="summaryReportInterceptor" class="com.apress.springrecipes.court.web.ExtensionInterceptor" />
+
+ <bean
+ class="org.springframework.web.servlet.mvc.annotation.DefaultAnnotationHandlerMapping">
+ <property name="order" value="1"/>
+ <property name="interceptors">
+ <list>
+ <ref bean="measurementInterceptor" />
+ </list>
+ </property>
+ ...
+ </bean> 
+
+ <!--具体拦截器-->
+  <bean class="org.springplugins.web.SelectedAnnotationHandlerMapping">
+ 	<property name="order" value="0" />
+ 	<property name="urls">
+ 		<list>
+ 			<value>/reservationSummary*</value>
+ 		</list>
+ 	</property>
+ 	<property name="interceptors">
+ 		<list>
+ 			<ref bean="summaryReportInterceptor" />
+ 		</list>
+ 	</property>
+ </bean>
+</beans> 
+
+4. Locales
+国际化，语言
+(1)根据HTTP请求头解析Locales
+Spring默认Locale解析bean: AcceptHeaderLocaleResolver,解析HTTP请求头的accept-language
+(2)根据Session Attribute解析Locales
+如果Session Attribute不存在，则解析HTTP请求头的accept-language
+<bean id="localeResolver"
+ class="org.springframework.web.servlet.i18n.SessionLocaleResolver">
+ <property name="defaultLocale" value="en" />
+</bean>
+(3)通过Cookie解析Locales
+如果不存在，则解析HTTP请求头的accept-language
+<bean id="localeResolver"
+ class="org.springframework.web.servlet.i18n.CookieLocaleResolver">
+ <property name="cookieName" value="language" />
+ <property name="cookieMaxAge" value="3600" />
+ <property name="defaultLocale" value="en" />
+</bean> 
+(4)改变用户的Locales
+通过拦截器LocaleChangeInterceptor，再把该拦截器注册到DefaultAnnotationHandlerMapping
+<beans ...>
+ ...
+	 <bean id="localeChangeInterceptor"
+	 class="org.springframework.web.servlet.i18n.LocaleChangeInterceptor">
+	 	<property name="paramName" value="language" />
+	 </bean>
+	 <bean class="org.springframework.web.servlet.mvc.annotation.
+	 DefaultAnnotationHandlerMapping">
+	 	<property name="interceptors">
+	 		<list>
+			 	...
+	 			<ref bean="localeChangeInterceptor" />
+	 		</list>
+	 	</property>
+	 ...
+	 </bean>
+</beans> 
+可以用http://localhost:8080/court/welcome?language=en_US 访问英语
+http://localhost:8080/court/welcome?language=de 德语
+
+<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<html>
+<head>
+<title>Welcome</title>
+</head>
+<body>
+...
+<br />
+Locale : ${pageContext.response.locale}
+</body>
+</html> 
+
+5.指定Locale
+<bean id="messageSource"
+ class="org.springframework.context.support.ResourceBundleMessageSource">
+ <property name="basename" value="messages" />
+</bean> 
+显示的文字存到文件中 messages.properties and messages_de.properties
+ResourceBundle rb1 = ResourceBundle.getBundle("com/baobaotao/i18n/resource", Locale.US);  
+
+
+6.根据Name解析Views
+ViewResolver是个接口，所有的resolver bean都必须实现这个接口，一个view可以被一个或多个view解析
+(1)基于template的位置和名字
+<bean class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+ <property name="viewClass"
+ value="org.springframework.web.servlet.view.JstlView" />
+ <property name="prefix" value="/WEB-INF/jsp/" />
+ <property name="suffix" value=".jsp" />
+</bean>
+welcome ‘ /WEB-INF/jsp/welcome.jsp
+reservationQuery ‘ /WEB-INF/jsp/reservationQuery.jsp 
+其中的名字就是welcome，reservationQuery是Handler返回的String
+
+(2)从XML配置文件中解析
+<bean class="org.springframework.web.servlet.view.XmlViewResolver">
+ <property name="location">
+ <value>/WEB-INF/court-views.xml</value>
+ </property>
+</bean> 
+
+ court-views.xml（每个bean代表一个页面）：
+<beans xmlns="http://www.springframework.org/schema/beans"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.springframework.org/schema/beans
+ http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+ <bean id="welcome"
+ class="org.springframework.web.servlet.view.JstlView">
+ <property name="url" value="/WEB-INF/jsp/welcome.jsp" />
+ </bean>
+ <bean id="reservationQuery"
+ class="org.springframework.web.servlet.view.JstlView">
+ <property name="url" value="/WEB-INF/jsp/reservationQuery.jsp" />
+ </bean>
+ <bean id="welcomeRedirect"
+ class="org.springframework.web.servlet.view.RedirectView">
+ <property name="url" value="welcome" />
+ </bean>
+</beans> 
+
+(3)从Resource Bundle中解析
+<bean class="org.springframework.web.servlet.view.ResourceBundleViewResolver">
+ <property name="basename" value="views" />
+</bean>
+
+ views.properties：
+ welcome.(class)=org.springframework.web.servlet.view.JstlView
+welcome.url=/WEB-INF/jsp/welcome.jsp
+reservationQuery.(class)=org.springframework.web.servlet.view.JstlView
+reservationQuery.url=/WEB-INF/jsp/reservationQuery.jsp
+welcomeRedirect.(class)=org.springframework.web.servlet.view.RedirectView
+welcomeRedirect.url=welcome 
+
+(4)多个Resolver
+ InternalResourceViewResolver 解析JSP
+ <beans ...>
+ ...
+ <bean class="org.springframework.web.servlet.view.ResourceBundleViewResolver">
+ <property name="basename" value="views" />
+ <property name="order" value="0" />
+ </bean>
+ <bean
+ class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+ <property name="prefix" value="/WEB-INF/jsp/" />
+ <property name="suffix" value=".jsp" />
+ <property name="order" value="1" />
+ </bean>
+</beans> 
+这里还可以用velocity解析，即以htm结尾的用velocity解析，jsp结尾的用InternalResourceViewResolver解析
+即resolver可定义多个
+
+7.Views和Content Negotiation
+Handler返回welcome，但是有welcome.htm和welcome.pdf，这时候用ContentNegotiatingViewResolver
+根据url的后缀和HTTP Accept header
+<bean id="contentNegotiatingResolver"
+ class="org.springframework.web.servlet.view.
+ ContentNegotiatingViewResolver">
+ <property name="order" 
+ value="#{T(org.springframework.core.Ordered).
+ HIGHEST_PRECEDENCE}" />
+ <property name="mediaTypes">
+ <map>
+ <entry key="html" value="text/html"/>
+ <entry key="pdf" value="application/pdf"/>
+ <entry key="xsl" value="application/vnd.ms-excel"/>
+ <entry key="xml" value="application/xml"/>
+ <entry key="json" value="application/json"/>
+ </map>
+ </property>
+ ….
+ </bean> 
+
+8.Exception Mapping到View
+异常时返回一个友好的页面
+HandlerExceptionResolver接口，实现指定接口的会被DispatcherServlet自动发现
+SimpleMappingExceptionResolver是Spring提供的实现了该接口的类
+package com.apress.springrecipes.court.service;
+...
+public class ReservationNotAvailableException extends RuntimeException {
+ private String courtName;
+ private Date date;
+ private int hour;
+ // Constructors and Getters
+ ...其中的信息可以直接传到前端，即用exception.date等就可以获取
+} 
+
+<bean class="org.springframework.web.servlet.handler.
+ SimpleMappingExceptionResolver">
+ <property name="exceptionMappings">
+ 	<props>
+ 		<prop key="com.apress.springrecipes.court.service.
+ 			ReservationNotAvailableException">
+ 			reservationNotAvailable
+ 		</prop>
+ 	</props>
+ </property>
+ <property name="defaultErrorView" value="error"/>
+</bean> 
+
+9.Controller与Form
+在默认情况下，ModelMap 中的属性作用域是 request 级别是，也就是说，当本次请求结束后，ModelMap 中的属性将销毁。如果希望在多个请求中共享 ModelMap 中的属性，必须将其属性转存到 session 中，这样ModelMap 的属性才可以被跨请求访问
+
+@Controller
+@RequestMapping("/reservationForm")
+@SessionAttributes("reservation") //modelMap属性reservation可以是Session访问
+public class ReservationFormController extends SimpleFormController {
+ private ReservationService reservationService;
+ @Autowired
+ public ReservationFormController() {
+ this.reservationService = reservationService;
+ }
+ @RequestMapping(method = RequestMethod.GET)
+ public String setupForm(Model model) {
+ Reservation reservation = new Reservation();
+ model.addAttribute("reservation", reservation);
+ return "reservationForm";
+ }
+ @RequestMapping(method = RequestMethod.POST)
+ public String submitForm(
+ @ModelAttribute("reservation") Reservation reservation,
+ BindingResult result, SessionStatus status) {
+ reservationService.make(reservation);
+ return "redirect:reservationSuccess";
+} 
+@ModelAttribute("reservation") Reservation reservation用于reservation对象的引用，因为在Body里，所以不能用RequestParam，而用ModelAttribute，可以把ModelAttribute理解为Body，而RequestParam理解为请求行中的参数。BindingResult包含新提交的数据，SessionStatus对象是Session的状态
+
+@RequestMapping(method = RequestMethod.GET)
+ public String setupForm(
+@RequestParam(required = false, value = "username") String username, Model model) {
+ Reservation reservation = new Reservation();
+ reservation.setPlayer(new Player(username, null));
+ model.addAttribute("reservation", reservation);
+ return "reservationForm";
+ } 
+
+http://localhost:8080/court/reservationForm?username=Roger 
+这种情况就能被Get方法所获取，@RequestParam(required = false, value = "username") String username
+POST不是直接在URL后面
+HTTP请求：
+<request line>          //http请求行
+<headers>               //http请求消息报头
+<blank line>             // 回 车 换行
+[<request-body>]     //http请求正文
+
+GET /books/?sex=man&name=Professional HTTP/1.1
+Host: www.wrox.com
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.7.6)
+Gecko/20050225 Firefox/1.0.1
+Connection: Keep-Alive
+
+POST / HTTP/1.1
+Host: www.wrox.com
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.7.6)
+Gecko/20050225 Firefox/1.0.1
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 40
+Connection: Keep-Alive
+（----此处空一行----）
+name=Professional%20Ajax&publisher=Wiley
+
+GET提交，请求的数据会附在URL之后（就是把数据放置在HTTP协议头中），以?分割URL和传输数据
+POST提交：把提交的数据放置在是HTTP包的包体中
+
+结束Session
+@Controller
+@RequestMapping("/reservationForm")
+@SessionAttributes("reservation")
+public class ReservationFormController {
+….
+ @RequestMapping(method = RequestMethod.POST)
+ public String submitForm( 
+ @ModelAttribute("reservation") Reservation reservation,
+ BindingResult result, SessionStatus status) {
+ reservationValidator.validate(reservation, result);
+ if (result.hasErrors()) {
+ model.addAttribute("reservation", reservation);
+ return "reservationForm";
+ } else {
+ reservationService.make(reservation);
+ status.setComplete();//结束session
+ return "redirect:reservationSuccess";
+ }
+ } 
+
+10.跨页表格
+@RequestMapping(method = RequestMethod.GET)
+ public String setupForm(Model model) {
+ PeriodicReservation reservation = new PeriodicReservation();
+ reservation.setPlayer(new Player());
+ model.addAttribute("reservation", reservation);
+ return "reservationCourtForm"
+ }
+ @RequestMapping(method = RequestMethod.POST)
+ public String submitForm(
+ HttpServletRequest request, HttpServletResponse response,
+ @ModelAttribute("reservation") PeriodicReservation reservation,
+ BindingResult result, SessionStatus status,//BindingResult把错误信息返回到页面中
+ @RequestParam("_page") int currentPage, Model model) {//把页号通过url传过来
+ Map pageForms = new HashMap();
+ pageForms.put(0,"reservationCourtForm");
+ pageForms.put(1,"reservationTimeForm");
+ pageForms.put(2,"reservationPlayerForm");
+ if (request.getParameter("_cancel") != null) {
+ // Return to current page view, since user clicked cancel
+ return (String)pageForms.get(currentPage);
+ } else if (request.getParameter("_finish") != null) {
+ // User is finished, make reservation
+ reservationService.makePeriodic(reservation);
+ return "redirect:reservationSuccess";
+ } else {
+ // User clicked Next or Previous(_target)
+
+ // Extract target page
+ int targetPage = WebUtils.getTargetPage(request, "_target", currentPage);
+ // If targetPage is lesser than current page, user clicked 'Previous'
+ if (targetPage < currentPage) {
+ return (String)pageForms.get(targetPage);
+ }
+ // User clicked 'Next', return target page
+ return (String)pageForms.get(targetPage);
+ }
+ }
+ @ModelAttribute("periods")
+ public Map<Integer, String> periods() {
+ Map<Integer, String> periods = new HashMap<Integer, String>();
+ periods.put(1, "Daily");
+ periods.put(7, "Weekly");
+ return periods;
+ } 
+
+
+
+ Other comments
+ 第二章 设计基于Spring MVC的微服务
+1.一个简单URL mapping的controller
+  Client user
+  | 1    |2	
+View   Controller
+ 4|______|3
+     |
+	Model
+(1)DispatcherServlet - Spring MVC的入口（在web.xml中）
+<servlet>
+ <servlet-name>spring</servlet-name>
+ <servlet-class>
+ org.springframework.web.servlet.DispatcherServlet
+ </servlet-class>
+ <load-on-startup>1</load-on-startup>
+</servlet>
+<servlet-mapping>
+ <servlet-name>spring</servlet-name>
+ <url-pattern>/*</url-pattern>
+</servlet-mapping>
+
+(2)基于注解的Controller
+@Controller
+必须有这行表明Controller在的包
+<context:component-scan base-package="edu.zipcloud.cloudstreetmarket.
+portal"/>
+
+@RequestMapping
+映射关系，表明处理HTTP request，header，parameter和media-type等的method
+@RequestMapping(value="/server", method=RequestMethod.GET)
+RequestMapping可以有以下几种参数：
+name (String)： Assign a name to the mapping
+
+@RequestMapping(value="/index")
+public ModelAndView getRequestExample(@RequestParam("exP1") String
+ exP1){
+ ModelAndView mav = new ModelAndView();
+ mav.setViewName("index");
+ mav.addObject("exP1", exP1);
+ return mav;
+}
+
+2.用ViewResolver配置fallback controller
+不管访问那个页面，都返回主页面
+@Controller
+public class DefaultController {
+ @RequestMapping(value="/*",
+ method={RequestMethod.GET,RequestMethod.HEAD})
+ public String fallback() {
+ return "index";
+ }
+}
+
+(1)URI template
+@RequestMapping(value="/default"...)
+@Controller
+public class DefaultController…{
+ @RequestMapping(value="/*"...)
+ public String fallback(Model model) {...}
+}
+如果类被注解，则其方法的路径是基于类的，如/default/*
+(2)ViewResolvers
+<bean id="viewResolver" class="org.springframework.web.servlet.view.
+InternalResourceViewResolver">
+ <property name="viewClass" value="org.springframework.web.servlet.
+ view.JstlView" />
+ <property name="prefix" value="/WEB-INF/jsp/" />
+ <property name="suffix" value=".jsp" />
+</bean>
+指定View的解析类，还可以指定VelocityViewResolver orFreeMarkerViewResolver
+
+注解@PathVariable：URI中的param会变成参数传到函数中
+@RequestMapping(value="/example/{param}")
+public HttpEntity<String> example(@PathVariable("param") String
+ parameter) {
+ return new HttpEntity<>(parameter);
+}
+
+
+
+1.可以再pom文件中指定jdk版本，以防止部署环境中的JDK版本问题，用到时可以查
+
+2.创建Welcome Page
+(1)在src/main/webapp/目录下创建创建WEB-INF/jsp/目录，并新建welcome.jsp文件
+(注：主要是注意文件夹，即htm或jsp的位置，可以这么记，webapp是根目录，WEB-INF就是web的信息，其中自然包含前端信息)
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
+<html>
+...
+<!--这里是重点，从后台传过来的值-->
+<h1> ${greeting} </h1>
+<p> ${tagline} </p>
+...
+(2)在src/main/java目录下创建java Controller包
+

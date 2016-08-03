@@ -1,0 +1,232 @@
+第二十四章 OSGi和Spring
+OSGi，Open Services Gateway initiative，面向Java的动态模型系统，一套Java模块化规范，提过服务注册和应用声明周期管理的框架。OSGi的部署单元是bundle，即在标准的jar包的manifest.mf文件中添加一些bundle的模块化特征（就是前面提到的metadata）后，这个jar包就变成了一个bundle,OSGi的模块化，是通过为JAR包添加metadata来定义哪些类应该暴露哪些类又隐藏在包中，其控制可见性的粒度是在bundle（JAR包）这一层面上的
+
+逻辑地封装成员类,为bundle内部的类赋予不同于外部代码的可见性规则；在bundle JAR中的public类不必对外部可见
+
+优势：使资源能够合理分配：将软件模块化后，每个独立的团队可以专心去设计和实现其模块，而不用通盘考虑整个软件的复杂性。
+增加软件重用性：每一个模块都是一个独立功能的封装，可以被轻松的用到其他的软件开发过程中。
+易于开发和维护：软件分成一个个模块，每一个模块都被独立的开发和维护，当软件出现问题后，就能很容易的定位到出问题的模块，降低了软件的复杂度和维护成本
+动态更新：管理人员可以在不重启 OSGi 应用的情况直接更新某一个模块
+
+1.OSGi Hello World
+生成：
+package com.apress.springrecipes.osgi.helloworld.service;
+public interface GreeterService {
+ String greet(String language, String name);
+} 
+
+package com.apress.springrecipes.osgi.helloworld.service; 
+public class GreeterServiceImpl implements GreeterService { 
+	...
+	 public String greet(String language, String name) {
+		 if (salutation.containsKey(language))
+		 	return String.format(salutation.get(language), name);
+		 throw new RuntimeException(String.format("The language you specified "+ 
+		 " (%s) doesn't exist", language));
+	 } 
+}
+
+package com.apress.springrecipes.osgi.helloworld.service;
+import org.osgi.framework.BundleActivator;
+import org.osgi.framework.BundleContext;
+import java.util.Properties;
+public class Activator implements BundleActivator {
+ public void start(BundleContext bundleContext) throws Exception {
+ System.out.println("Start: ");
+ bundleContext.registerService(
+ GreeterService.class.getName(),
+ new GreeterServiceImpl(),
+ new Properties());
+ }
+ public void stop(BundleContext bundleContext) throws Exception {
+ System.out.println("Stop: "); // NOOP
+ }
+} 
+
+…
+<plugin>
+ <groupId>org.apache.felix</groupId>
+ <artifactId>maven-bundle-plugin</artifactId>
+ <extensions>true</extensions>
+ <configuration>
+ <instructions>
+ <!--规定暴露的接口和Activator，告诉plug-in在MANIFEST里加 ExportPackage
+directive和Bundle-Activator header-->
+<Export-Package>com.apress.springrecipes.osgi.helloworld.service</Export-Package>
+<Bundle-Activator>com.apress.springrecipes.osgi.helloworld.service.Activator
+</Bundle-Activator>
+ </instructions>
+ </configuration>
+</plugin>
+… 
+
+target/classes/META-INF（由plug-in自动生成）：
+Manifest-Version: 1.0
+Export-Package: com.apress.springrecipes.osgi.
+helloworld.service;uses:="org.osgi.framework"
+Private-Package: com.apress.springrecipes.osgi.helloworld.service,
+Built-By: Owner
+Tool: Bnd-0.0.311
+Bundle-Name: helloworld-service
+Created-By: Apache Maven Bundle Plugin
+Bundle-Version: 1.0.0.SNAPSHOT
+Build-Jdk: 1.6.0_14-ea
+Bnd-LastModified: 1243157994625
+Bundle-ManifestVersion: 2
+Bundle-Activator: com.apress.springrecipes.osgi.
+helloworld.service.Activator
+Import-Package: com.apress.springrecipes.osgi.helloworld.service,
+org.osgi.framework;version="1.3"
+Bundle-SymbolicName: com.apress.springrecipes.osgi.helloworld.service.
+helloworld-service 
+
+用：
+装Equinox插件(Equinox项目是Eclipse开源组织提供的OSGi框架的实现)
+package com.apress.springrecipes.osgi.helloworld.client;
+import com.apress.springrecipes.osgi.helloworld.service.GreeterService;
+import org.osgi.framework.BundleActivator;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.ServiceReference; 
+
+public class Activator implements BundleActivator {
+ public void start(BundleContext bundleContext) throws Exception {
+ ServiceReference refs[] = bundleContext.getServiceReferences(
+ GreeterService.class.getName(), null);
+ if (null == refs || refs.length == 0) {
+ System.out.println("there is no service by this description!");
+ return;
+ } 
+  GreeterService greeterService = (GreeterService)
+ bundleContext.getService(refs[0]);
+ String[] names = {"Gary", "Steve", "Josh", "Mario",
+ "Srinivas", "Tom", "James", "Manuel"};
+ for (String language : Arrays.asList(
+ Locale.ENGLISH.toString(),
+ Locale.FRENCH.toString(),
+ Locale.ITALIAN.toString())) {
+ for (String name : names) {
+ System.out.println(greeterService.greet(language, name));
+ }
+ }
+ }
+ public void stop(BundleContext bundleContext) throws Exception {
+ // NOOP
+ }
+}
+（这个例子知道OSGi的大概流程就行，一般用Spring的，没有用这个的，理解MANIFEST.MF和Service怎么调用）
+
+2. Spring DM
+Spring DM是支持OSGi环境的API，需要 Spring OSGi JAR
+Spring DM 扫描在ApplicationContext里的bundles，不过一般都会给OSGi单独的xml
+modulename-context.xml（Spring ApplicationContext）
+modulename-osgi-context.xml（For OSGi）
+
+package com.apress.springrecipes.osgi.springdmhelloworld.impl;
+import com.apress.springrecipes.osgi.helloworld.service.GreeterService;
+import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.Arrays;
+import java.util.Locale;
+public class SpringDMGreeterClient implements InitializingBean {
+ @Autowired
+ private GreeterService greeterService;
+ public void afterPropertiesSet() throws Exception {
+ for (String name : Arrays.asList("Mario", "Fumiko", "Makani"))
+ System.out.println(greeterService.greet(Locale.FRENCH.toString(), name));
+ }
+} 
+
+src/main/resources/META-INF/spring/bundlecontext.xml（Spring ApplicationContext）
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xmlns:context="http://www.springframework.org/schema/context"
+ xsi:schemaLocation="http://www.springframework.org/schema/beans 
+http://www.springframework.org/schema/beans/spring-beans.xsd
+ http://www.springframework.org/schema/context 
+http://www.springframework.org/schema/context/spring-context.xsd">
+ <context:annotation-config/>
+ <!--仅定义bean，还有注解，和普通的没区别-->
+ <bean name="springDMGreeterClient"
+ class="com.apress.springrecipes.osgi.springdmhelloworld.impl.SpringDMGreeterClient"/>
+</beans> 
+
+src/main/resources/METAINF/spring/bundle-context-osgi.xml（OSGi xml）
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ <!--需要有shema-->
+ xmlns:osgi="http://www.springframework.org/schema/osgi"
+ xsi:schemaLocation="http://www.springframework.org/schema/beans 
+http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+ http://www.springframework.org/schema/osgi 
+http://www.springframework.org/schema/osgi/spring-osgi.xsd">
+<!--注册osgi serevice，接口-->
+ <osgi:reference id="greeterService"
+interface="com.apress.springrecipes.osgi.helloworld.service.GreeterService"/>
+</beans> 
+public class GreeterServiceImpl implements GreeterService { 
+	...
+	 public String greet(String language, String name) {
+		 if (salutation.containsKey(language))
+		 	return String.format(salutation.get(language), name);
+		 throw new RuntimeException(String.format("The language you specified "+ 
+		 " (%s) doesn't exist", language));
+	 } 
+}
+
+最后在SpringDMGreeterClient可直接使用 @Autowired private GreeterService greeterService;因为在OSGi xml中已经注册
+
+3.Spring DM导出Service
+Exporting a service
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"    
+    xmlns:osgi="http://www.springframework.org/schema/osgi"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/osgi
+        http://www.springframework.org/schema/osgi/spring-osgi.xsd">
+<!--bean的id在service中引用，指明该service的类，还需要指明interface，所以OSGi都需要一个interface和一个xxximpl类-->
+    <bean id="someService" class="de.ralfebert.services.internal.SomeServiceImpl"/>
+
+    <osgi:service ref="someService" interface="de.ralfebert.services.ISomeService"/>
+
+</beans>
+
+Importing a service
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:osgi="http://www.springframework.org/schema/osgi"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/osgi
+        http://www.springframework.org/schema/osgi/spring-osgi.xsd">
+<!--osgi:reference-->
+    <osgi:reference id="someService" interface="de.ralfebert.services.ISomeService"/>
+
+</beans>
+
+4.注解
+@ServiceReference
+public void setGreeterService(GreeterService greeterService) {
+ // …
+} 
+不过需要配置：
+ <bean name="extenderProperties" class="org.springframework.beans.factory.
+config.PropertiesFactoryBean">
+ <property name="properties">
+ <props>
+ <!--这里-->
+ <prop key="process.annotations">true</prop>
+ </props>
+ </property>
+ </bean>
+ </beans> 
+ （注：记住支持注解，而且需要在xml里配置就行，可以优先使用注解，方便，少量xml）
+
+
+总结：大致了解其基本流程，比如例1，重点看spring DM，基本就是一个osgi:service,而它需要知道具体实现类，即bean和接口，用的时候直接osgi:reference就行
+
+

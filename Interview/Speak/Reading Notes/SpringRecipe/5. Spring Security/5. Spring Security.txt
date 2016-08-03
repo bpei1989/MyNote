@@ -1,0 +1,445 @@
+第五章 Spring Security
+Authorization是给已经authenticated的用户授予权限，必须在authenticated后，authorities是基于ROLE的
+Access control是控制访问资源权限
+（基本上可以理解为：先登录，登陆后检查是什么ROLE，有什么权限，）
+1.控制特性URL的访问
+Spring Security通过对http request应用servlet filters实现安全控制，用DelegatingFilterProxy来代理Spring application context中的filter
+具体原理见图5.1
+<http>标签用于配置web应用的security，auto-config=true，Spring会自动注册基本的security service：
+Form-based login service：映射登陆后的默认显示页面
+Logout service：映射登出后显示页面
+HTTP Basic authentication：验证http request header里的信息（Basic authentication credentials presented in HTTP request headers）
+Anonymous login：管理匿名用户权限，即类似游客的用户
+Remember-me support：验证用户发过来的cookie中是否有remember-me
+Servlet API integration：允许通过Servlet API访问安全信息，如HttpServletRequest.isUserInRole()，HttpServletRequest.getUserPrincipal()
+(1) web.xml中配置DelegatingFilterProxy
+<web-app ...>
+ <context-param>
+ <param-name>contextConfigLocation</param-name>
+ <param-value>
+ /WEB-INF/board-service.xml
+ <!--重点，Context中需要包含security的配置文件，其中有各种http标签等-->
+ /WEB-INF/board-security.xml
+ </param-value>
+ </context-param>
+ ...
+ <!--Filter重点，有DelegatingFilterProxy，和url-pattern-->
+ <filter>
+	 <filter-name>springSecurityFilterChain</filter-name>
+		 <filter-class>
+		 	org.springframework.web.filter.DelegatingFilterProxy
+		 </filter-class>
+ </filter>
+ <filter-mapping>
+	 <filter-name>springSecurityFilterChain</filter-name>
+	 <url-pattern>/*</url-pattern>
+ </filter-mapping>
+ ...
+</web-app> 
+默认DelegatingFilterProxy代理bean名字和<filter-name>一样的bean，不过可以override
+
+(2)/WEB-INF/board-security.xml：
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+ xmlns:beans="http://www.springframework.org/schema/beans"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.springframework.org/schema/beans
+ http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+ http://www.springframework.org/schema/security
+ http://www.springframework.org/schema/security/spring-security-3.0.xsd">
+ <!--配置basic security service-->
+ <http auto-config="true">
+	 <intercept-url pattern="/messageList*"
+	 access="ROLE_USER,ROLE_ANONYMOUS" />
+	 <intercept-url pattern="/messagePost*" access="ROLE_USER" />
+	 <intercept-url pattern="/messageDelete*" access="ROLE_ADMIN" />
+ </http>
+ <authentication-manager>
+ 	<!--可能有多个provider，比如数据库，LDAP等-->
+	 <authentication-provider>
+	 <!--user service用于管理用户名密码-->
+	 <user-service>
+		 <user name="admin" password="secret"
+		 authorities="ROLE_ADMIN,ROLE_USER" />
+		 <user name="user1" password="1111" authorities="ROLE_USER" />
+	 </user-service>
+	 </authentication-provider>
+ </authentication-manager>
+</beans:beans>
+
+2.登录Web App
+配置各种默认页面
+如果disable auto-config则个想都需要自己配置，开启则Spring自动配置（估计是根据命名规则之类，最好自己配，灵活）
+<!--去掉auto-config-->
+<http>
+	 <intercept-url pattern="/messageList*"
+	 access="ROLE_USER,ROLE_ANONYMOUS" />
+	 <intercept-url pattern="/messagePost*" access="ROLE_USER" />
+	 <intercept-url pattern="/messageDelete*" access="ROLE_ADMIN" />
+ </http>
+(1)Http basic Authentication
+<http>
+ ...
+ <http-basic />
+</http>
+显示登录界面，和Form-based login不能同时用
+
+(2)Form-Based Login 
+<!--指定login页面-->
+<http>
+ ...
+ <form-login login-page="/login.jsp" />
+</http>
+
+<!--指定登录成功后的跳转页面-->
+<http>
+ ...
+ <form-login login-page="/login.jsp" default-target-url="/messageList"/>
+</http>
+
+<!--指定登录失败的跳转页面-->
+<http>
+ ....
+ <form-login login-page="/login.jsp" default-target-url="/messageList"
+ authentication-failure-url="/login.jsp?error=true" />
+</http>
+${sessionScope["SPRING_SECURITY_LAST_EXCEPTION"].message}可在前端访问失败原因
+
+(3)LogOut
+<http>
+ ...
+ <logout logout-success-url="/login.jsp" />
+</http> 
+
+(4)Anonymous Login 
+ <anonymous>，默认用户名anonymousUser，权限ROLE_ANONYMOUS
+<http>
+ <intercept-url pattern="/messageList*" access="ROLE_USER,ROLE_GUEST" />
+ <intercept-url pattern="/messagePost*" access="ROLE_USER" />
+ <intercept-url pattern="/messageDelete*" access="ROLE_ADMIN" />
+ ...
+ <anonymous username="guest" granted-authority="ROLE_GUEST" />
+</http> 
+
+(6)Remember-Me
+默认会把用户名密码，有效时间，token等存到cookie，但是会有安全问题，cookie可被截获
+<http>
+ ...
+ <remember-me />
+</http>
+
+3. 认证用户
+登录后验证ROLE和权限，其实主要是authentication-manager中的authentication-provider
+(1)In-Memory Definition
+<authentication-manager>
+ <authentication-provider>
+ <user-service>
+ <user name="admin" password="secret" authorities="ROLE_ADMIN,ROLE_USER" />
+ <user name="user1" password="1111" authorities="ROLE_USER" />
+ <user name="user2" password="2222" disabled="true" authorities="ROLE_USER" />
+ </user-service>
+ </authentication-provider>
+</authentication-manager> 
+还可以用外部properties文件，如 /WEBINF/users.properties
+<authentication-manager>
+ <authentication-provider>
+ <user-service properties="/WEB-INF/users.properties" />
+ </authentication-provider>
+</authentication-manager> 
+
+/WEBINF/users.properties：
+admin=secret,ROLE_ADMIN,ROLE_USER
+user1=1111,ROLE_USER
+user2=2222,disabled,ROLE_USER 
+
+(2)Database
+(注：其实ROLE并不是很多的情况下用内存的方法较多，即存到文件中，如果是大量的可能会用数据库)
+即把用户名密码，权限存到数据库
+Table 5-1. Testing User Data for the USERS Table
+USERNAME PASSWORD ENABLED
+Admin Secret 1
+user1 1111 1
+user2 2222 0
+
+Table 5-2. Testing User Data for the AUTHORITIES Table
+USERNAME AUTHORITY
+Admin ROLE_ADMIN
+Admin ROLE_USER
+user1 ROLE_USER
+user2 ROLE_USER 
+
+<!--dataSource是所有用到数据库的必须配的javabean-->
+<authentication-manager>
+ <authentication-provider>
+<!--标签jdbc-user-service-->
+	<jdbc-user-service data-source-ref="dataSource"
+	 users-by-username-query=
+	 "SELECT username, password, 'true' as enabled
+	 FROM member
+	 WHERE username = ?"
+	 authorities-by-username-query=
+	 "SELECT member.username, member_role.role as authorities
+	 FROM member, member_role
+	 WHERE member.username = ? AND member.id = member_role.member_id" /> 
+ </authentication-provider>
+</authentication-manager>
+
+(3)加密密码
+用标签password-encoder
+<authentication-manager>
+ <authentication-provider>
+ <!--加密算法-->
+ <password-encoder hash="md5" />
+ <jdbc-user-service data-source-ref="dataSource" />
+ </authentication-provider>
+</authentication-manager> 
+应该也可以：
+<authentication-manager>
+ <authentication-provider>
+ <password-encoder hash="md5" />
+ <user-service properties="/WEB-INF/users.properties" />
+ </authentication-provider>
+</authentication-manager> 
+(估计不怎会用直接写在xml里的那种，应该属性文件用的最多)
+
+(4)LDAP
+<ldap-user-service标签，和数据库有些类似，都是ref（知道就行，估计用的不多）
+<beans:beans ...>
+ ...
+ <authentication-manager>
+ <authentication-provider>
+ <password-encoder hash="{sha}" />
+ <ldap-user-service server-ref="ldapServer"
+ user-search-filter="uid={0}" user-search-base="ou=people"
+ group-search-filter="member={0}" group-search-base="ou=groups" />
+ </authentication-provider>
+ </authentication-manager>
+ <ldap-server id="ldapServer"
+ url="ldap://localhost:389/dc=springrecipes,dc=com"
+ manager-dn="cn=Directory Manager" manager-password="ldap" />
+</beans:beans>
+
+(5)缓存(了解，其实主要还是properties)
+LDAP和database都支持缓存 （<jdbc-user-service> and <ldap-user-service>）
+这两个是给下面做ref的
+<ehcache>
+ <diskStore path="java.io.tmpdir"/>
+ <defaultCache
+ maxElementsInMemory="1000"
+ eternal="false"
+ timeToIdleSeconds="120"
+ timeToLiveSeconds="120"
+ overflowToDisk="true"
+ />
+ <cache name="userCache"
+ maxElementsInMemory="100"
+ eternal="false"
+ timeToIdleSeconds="600"
+ timeToLiveSeconds="3600"
+ overflowToDisk="true"
+ />
+</ehcache> 
+
+
+<beans:beans ...>
+ ...
+ <authentication-manager>
+ <authentication-provider>
+ ...
+ <ldap-user-service server-ref="ldapServer"
+ user-search-filter="uid={0}" user-search-base="ou=people"
+ group-search-filter="member={0}" group-search-base="ou=groups"
+ cache-ref="userCache" />
+ </authentication-provider>
+ </authentication-manager>
+ <beans:bean id="userCache" class="org.springframework.security.providers.
+ dao.cache.EhCacheBasedUserCache">
+ <beans:property name="cache" ref="userEhCache" />
+ </beans:bean>
+ <beans:bean id="userEhCache"
+ class="org.springframework.cache.ehcache.EhCacheFactoryBean">
+ <beans:property name="cacheManager" ref="cacheManager" />
+ <beans:property name="cacheName" value="userCache" />
+ </beans:bean>
+</beans:beans> 
+
+Spring还提供了一个bean，默认从ehcache.xml中加载
+<bean id="cacheManager"
+ class="org.springframework.security.core.userdetails.cache.EhCacheManagerFactoryBean" /> 
+(注：总之和security有关，而且是cache的就想到这一块就行，用时查)
+
+
+
+
+comments：
+Beginning Spring
+
+第十二章 Spring Security
+1. SPRING SECURITY中的各个Filter
+Spring Security基于servlet filter。Servlet filter用于拦截，检查或改变对于url的请求
+当一个request到来时，它会依次通过以下各个filter（filter chain）：
+(1)ChannelProcessingFilter
+主要检查request的HTTP样式，如果是需要HTTPS请求，但request是HTTP的，则redirect到HTTPS
+(2)ConcurrentSessionFilter
+管理用户的seesion
+(3)SecurityContextPersistenceFilter
+在HttpSession中保存认证的token，并在下一次request发起时放到SecurityContextHolder中，这样可以保证登录一次就可以一直在一个session中保持登录状态，即通过authentication token
+(4)LogoutFilter
+如果url和logout的url匹配，则清除authentication token，把HttpSession置为无效，然后redirect到logout成功的页面
+(5)UsernamePasswordAuthenticationFilter
+AbstractAuthenticationProcessingFilter的子类，用于验证用户名密码，当url是登录的url时调用
+(6)SecurityContextHolderAwareRequestFilter
+包装了HttpServletRequest，这样就就能用getRemoteUser()和isUserInRole(String)查询Spring Security Context
+(7)RememberMeAuthenticationFilter
+检查客户端发过来的cookie，如果remember-me cookie存在而且有效，则执行 remember‐me authentication
+(8)AnonymousAuthenticationFilter
+除非有一个有效的authentication token，否则创建guest authentication token，放到org.springframework.security.core.context.SecurityContext中
+(9)ExceptionTranslationFilter
+把security异常map到不同的URL
+(10)FilterSecurityInterceptor
+最后一个filter，对web resource进行认证，只有获取权限的用户才能访问受保护的资源
+
+以上各个filter不一定全部配置，不过大概的流程就是这样，而且很多filter的类其实使用代理模式，具体执行的是其他类（代理模式很常用）
+
+4. Access Control
+判断登录用户是否拥有访问特定资源的权限
+由access dicision manager控制，实现AccessDecisionManager的类
+Table 5-6. Access Decision Managers That Come with Spring Security
+Access Decision Manager   When to Grant Access
+AffirmativeBased          At least one voter votes to grant access.
+ConsensusBased            A consensus of voters votes to grant access.
+UnanimousBased            All voters vote to abstain or grant access (no voter votes to deny access). 
+
+有三种状态 ACCESS_GRANTED, ACCESS_DENIED, and ACCESS_ABSTAIN
+
+<bean id="_accessManager"
+ class="org.springframework.security.access.vote.AffirmativeBased">
+	 <property name="decisionVoters">
+		 <list>
+			 <bean class="org.springframework.security.access.vote.RoleVoter" />
+			 <bean class="org.springframework.security.access.vote.AuthenticatedVoter" />
+		 </list>
+	 </property>
+</bean> 
+
+(1)实现AccessDecisionVoter，主要是vote方法，这个方法会返回ACCESS_GRANTED, ACCESS_DENIED和ACCESS_ABSTAIN
+package com.apress.springrecipes.board.security;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.access.ConfigAttribute;
+import org.springframework.security.web.authentication.WebAuthenticationDetails;
+import org.springframework.security.access.AccessDecisionVoter;
+import java.util.Collection;
+public class IpAddressVoter implements AccessDecisionVoter {
+ public static final String IP_PREFIX = "IP_";
+ public static final String IP_LOCAL_HOST = "IP_LOCAL_HOST";
+ public boolean supports(ConfigAttribute attribute) {
+ return attribute.getAttribute() != null
+ && attribute.getAttribute().startsWith(IP_PREFIX);
+ }
+ public boolean supports(Class clazz) {
+ return true;
+ }
+ public int vote(Authentication authentication, Object object,
+ Collection<ConfigAttribute> configList) {
+ if (!(authentication.getDetails() instanceof WebAuthenticationDetails)) {
+ return ACCESS_DENIED;
+ }
+ WebAuthenticationDetails details =
+ (WebAuthenticationDetails) authentication.getDetails();
+ String address = details.getRemoteAddress(); 
+
+ int result = ACCESS_ABSTAIN;
+ for (ConfigAttribute config : configList) {
+
+ result = ACCESS_DENIED;
+ if (IP_LOCAL_HOST.equals(config.getAttribute())) {
+ if (address.equals("127.0.0.1") || address.equals("0:0:0:0:0:0:0:1")) {
+ return ACCESS_GRANTED;
+ }
+ }
+
+ }
+ return result;
+ }
+} 
+
+(2)加入AccessDecisionManager
+<beans:bean id="accessDecisionManager"
+ class="org.springframework.security.access.vote.AffirmativeBased">
+ <beans:property name="decisionVoters">
+ <beans:list>
+ <beans:bean
+ class="org.springframework.security.access.vote.RoleVoter" />
+ <beans:bean
+ class="org.springframework.security.acces.vote.AuthenticatedVoter" />
+ <!--加入-->
+ <beans:bean
+ class="com.apress.springrecipes.board.security.IpAddressVoter" />
+ </beans:list>
+ </beans:property>
+</beans:bean> 
+
+(3)权限
+因为收入127.0.0.1权限，所以配置http标签
+<http access-decision-manager-ref="accessDecisionManager">
+ <intercept-url pattern="/messageList*" access="ROLE_USER,ROLE_GUEST" />
+ <intercept-url pattern="/messagePost*" access="ROLE_USER" />
+ <intercept-url pattern="/messageDelete*"
+ <!--注意IP_LOCAL_HOST还可以是一个权限-->
+ access="ROLE_ADMIN,IP_LOCAL_HOST" />
+ ...
+</http> 
+
+5. Securing Method 调用
+定义方法的调用权限
+(1)xml定义
+用标签<security:intercept-methods>，如果是基于切点的（AspectJ），则用 <global-method-security>标签
+<bean id="messageBoardService"
+ class="com.apress.springrecipes.board.service.MessageBoardServiceImpl">
+ <security:intercept-methods
+ access-decision-manager-ref="accessDecisionManager">
+ <security:protect
+ method="com.apress.springrecipes.board.service.
+ MessageBoardService.listMessages"
+ access="ROLE_USER,ROLE_GUEST" /> 
+ ...
+
+ <global-method-security
+ access-decision-manager-ref="accessDecisionManager">
+ <protect-pointcut expression=
+ "execution(* com.apress.springrecipes.board.service.*Service.list*(..))"
+ access="ROLE_USER,ROLE_GUEST" />
+ ...
+
+(2)注解（如果用，应该是注解用的更多，易用）
+<global-method-security secured-annotations="enabled"
+ access-decision-manager-ref="accessDecisionManager" /> 
+
+package com.apress.springrecipes.board.service;
+...
+import org.springframework.security.access.annotation.Secured;
+public class MessageBoardServiceImpl implements MessageBoardService {
+ ...
+ @Secured({"ROLE_USER", "ROLE_GUEST"})
+ public List<Message> listMessages() {
+ ...
+ }
+ @Secured("ROLE_USER")
+ public synchronized void postMessage(Message message) {
+ ...
+ }
+ @Secured({"ROLE_ADMIN", "IP_LOCAL_HOST"})
+ public synchronized void deleteMessage(Message message) {
+ ...
+ }
+ @Secured({"ROLE_USER", "ROLE_GUEST"})
+ public Message findMessageById(Long messageId) {
+ return messages.get(messageId);
+ }
+} 
+(记住method也可以secure，@Secured，具体可以查)
+
+6. 在前端实行Security
+JSP的，可以不看
+
+7.Domain Object Security
+对域名对象进行授权，这个有点偏，可以不看，基本就是用ACL，access control list

@@ -657,4 +657,262 @@ public class DefaultThreadPool<Job extends Runnable> implements ThreadPool<Job> 
 			this.workerNum += num;
 		}
 	}
+
+	public void removeWorker(int num) {
+		synchronized (jobs) {
+			if (num >= this.workerNum) {
+				throw new IllegalArgumentException("beyond workNum");
+			}
+			//停止指定数量的Worker
+			int count = 0;
+			while (count < num) {
+				Worker worker = workers.get(count);
+				if (workers.remove(worker)) {
+					worker.shutdown();
+					count++;
+				}
+			}
+			this.workerNum -= count;
+		}
+	}
+
+	public int getJobSize() {
+		return jobs.size();
+	}
+
+	private void initializeWorkers(int num) {
+		for (int i=0; i<num; i++) {
+			Worker worker = new Worker();
+			workers.add(worker);
+			Thread thread = new Thread(worker, "ThreadPool-Worker-" + threadNum.incrementAndGet());
+			thread.start();
+		}
+	}
+
+	//内部类
+	class Worker implements Runnable {
+		private volatile boolean running = true;
+		public void run() {
+			while(running) {
+				Job job = null;
+				synchronized (jobs) {
+					while(jobs.isEmpty()) {
+						try {
+							jobs.wait();
+						} catch (InterruptedException ex) {
+							Thread.currentThread().interrupt();
+							return;
+						}
+					}
+					job = jobs.removeFirst();//取出一个
+				}
+				if (job != null) {
+				try {
+					job.run();
+				} catch (Exception ex) {
+					...
+				}
+			}
+		}
+
+		public void shutdown() {
+			running = false;
+		}
+	}
 }
+
+总：使用notify而不是notifyAll是因为唤醒一个
+线程池的本质是使用了一个线程安全的工作队列连接工作者线程和客户端线程，客户端将任务放到工作队列后就返回，而工作者线程则不断地从工作队列上取出工作并执行
+
+(3) 一个基于线程池技术的简单Web服务器
+public class SimpleHttpServer {
+	//处理HttpRequest的线程池
+	static ThreadPool<HttpRequestHandler> threadpool = new DefaultThreadPool<HttpRequestHandler>(1);
+	static String basePath;
+	static ServerSocket serverSocket;
+	static int port = 8080;
+
+	public static void setPort(int port) {
+		if (port > 0) {
+			SimpleHttpServer.port = port;
+		}
+	}
+
+	public static void setBasePath(String basePath) {
+		if (xxx) {//检查basepath合法性
+			SimpleHttpServer.basePath = basePath;
+		}
+	}
+
+	//启动server
+	public static void start() throws Exception {
+		serverSocket = new ServerSocket(port);
+		Socket socket = null;
+		while ((socket = serverSocket.accept()) != null) {
+			threadPool.execute(new HttpRequestHandler(socket));
+		}
+		serverSocket.close();
+	}
+
+	static class HttpRequestHandler implements Runnable {
+		private Socket socket;
+		public HttpRequestHandler(Socket socket) {
+			this.socket = socket;
+		}
+
+		@Override
+		public void run() {
+			String line = null;
+			BufferedReader br = null;
+			BufferedReader reader = null;
+			PrintWirter out = null;//能处理字符流和字节流
+			InputStream in = null;
+			try {
+				reader=new BufferedReader(new InputStreamReader(socket.getInputStream()));
+				String header = reader.readLine();
+				String filePath = basePath = header.split(" ")[1];//计算绝对路径
+				out = new PrintWriter(socket.getOutputStream());
+				if(filePath.endWith("jpg") || filePath.endsWith("ico")) {//客户端请求图片
+					in = new FileInputStream(filePath);
+					ByteArrayOutputStream baos = new ByteArrayOutputStream();
+					int i = 0;
+					while((i = in.read()) != -1) {
+						baso.write(i);
+					}
+					byte[] array = baos.toByteArray();
+					out.println("HTTP/1.1 200 OK");
+					out.println("Server: Molly");
+					out.println("Content-Type: image/jpeg");
+					out.println("Content-Length: " + array.length);
+					out.println("");
+					socket.getOutputStream().write(array, 0, array.length);
+				}
+			}
+			out.flush();
+		} catch (Exception ex) {
+			out.println("HTTP/1.1 500");
+			out.println("");
+			out.flush();
+		} finally {
+			close(br, in, reader, out, socket);
+		}
+	}
+
+	private static void close(Closeable... closeable) {
+		if (closeable != null) {
+			for(Closeable closeable : closeables) {
+				try {
+					closeable.close();
+				} catch (Exception ex){...}
+			}
+		}
+	}
+}
+
+
+第五章 Java中的锁
+1. Lock接口
+Lock出现之前，Java靠synchronized实现锁，synchronized虽然可以隐形获取和释放锁，但不灵活，没有超时，可中断,非阻塞获取锁等
+不要把获取锁的代码写在try里，如果发生异常，会导致锁无故释放
+//正确写法
+Lock lock = new ReentrantLock();//可重入锁
+lock.lock();
+try {
+	...
+} finally {
+	lock.unlock();
+}
+这块主要的函数：tryLock，lock，lockInterruptibly（可响应中断），unlock，newCondition（获取等待通知组件，只有获取了lock，才能调用组件的wait）
+Lock接口基本都是通过聚合一个同步器的子类来完成的
+
+2.队列同步器(AbstractQueuedSynchronizer)
+使用一个int变量表示同步状态，通过FIFO队列完成线程资源排队，同步器通过实现AbstractQueuedSynchronizer的抽象方法实现
+AbstractQueuedSynchronizer提供了三个方法来管理同步状态：
+getState():获取当前同步状态
+setState(int newState):设置同步状态
+compareAndSetState(int expect, int update):使用CAS设置当前状态，保证设置的原子性
+
+同步器可实现的抽象方法：tryAcquire，tryRelease，tryAcquireShared，tryReleaseShared，isHelExclusively
+同步器维护一个FIFO的链表，添加节点，删除节点都需要CAS保证原子性，链表的首尾地址存在同步器中
+
+实现Mutex
+class Mutex implements Lock {
+	//静态内部类，自定义同步器
+	private static class Sync extends AbstractQueuedSynchronizer {
+		//是否处于占用状态
+		protected boolean isHeldExclusively() {
+			return getState() == 1;
+		}
+
+		//状态为0则获取锁
+		public boolean tryAcquire(int acquires) {
+			if (compareAndSetState(0, 1)) {
+				setExclusiveOwnerThread(Thread.currentThread());
+				return true;
+			}
+			return false;
+		}
+
+		//释放锁，把状态置为0
+		protected boolean tryRelease(int release) {
+			if (getState() == 0)
+				throw IllegalMonitorStateException();
+			setExclusiveOwnerThread(null);
+			setState(0);
+			return true;
+		}
+
+		//返回一个condition，每个condition包含一个condition队列
+		Condition newCondition() { return new ConditionObject(); }
+	}
+	//各个方法代理到Sync上，这就是为什么Lock基于同步器的原因
+	private final Sync sync = new Sync();
+	public void lock() { sync.acquire(1); }
+	public boolean tryLock() { return sync.tryAcquire(1); }
+	public void unlock() { sync.release(); }
+	public Condition newCondition() { return sync.newConditon(); }
+	public boolean isLocked() { return sync.isHeldExclusively(); }
+	public boolean hasQueuedThreads() { return sync.hashQueuedThreads(); }
+	public void lockInterruptibly() throws InterruptedException { 
+		sync.acquireInterruptibly(1);
+	}
+	public boolean tryLock(long timeout, TimeUnit unit) throws InterruptedException {
+		return sync.tryAcquireNanos(1, unit, toNanos(timeout));
+	}
+}
+
+3.重入锁
+ReentrantLock，支持一个线程对资源的重复加锁
+Mutex是不可重入，因为再次tryAcquire方法会返回false，synchronized隐形支持重入，同一个线程可重复获取同一个锁
+ReentrantLock调用lock后再次调用不会被阻塞，基本原理就是在lock，tryLock方法中判断是不是以获取锁的线程获取锁，如果是直接返回true
+
+4.读写锁
+ReentrantReadWriteLock，支持多线程读，单线程写，一般情况下比排他性锁性能好，因为大多数场景是读
+原理是自定义同步器中同步状态整型变量的高16位负责读，低16位负责写，通过位运算获取读写状态
+读：int c = c + (1<<16);
+1向右移16位于当前获取锁线程的数值相加，获取读锁线程数
+比如，一共有3个线程有读锁
+00000000000000110000000000000000
++
+00000000000000010000000000000000
+00000000000001000000000000000000
+即高16位是4
+写的话就必须是0，没有线程的状态，然后直接加1就行，这就是为什么低位负责写
+00000000000000000000000000000001
+
+5.LockSupport
+当阻塞或唤醒一个线程时，会用LockSupport工具类，它定义了一组公共静态方法，这些方法提供了最基本的线程阻塞和唤醒功能
+park,阻塞当前线程
+parkNanos(long) 超时返回式阻塞
+parkUnttil(long) 阻塞线程知道某个时间
+unpark(Thread)唤醒
+
+6.Condition接口
+任意一个java对象都有Monitor（定义在java.lang.Object中），包括wait，wait(long)，notify()和notifyAll，这些方法与synchronized配合
+Condition接口提供了类似Object监视器方法，与Lock配合实现等待通知
+
+
+
+
+
+
