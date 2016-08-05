@@ -1,0 +1,399 @@
+第二章 装配Bean
+1.声明bean
+Spring常用命名空间：
+aop,benas,context,jms，mvc，tx（事务）
+
+例子：才艺大赛
+参赛者接口
+package com.springaction.springidol;
+public interface Performer {
+	void perform() throws PerformanceException;
+}
+
+第一位参赛者,名字：Duke，职业：杂技师：
+package com.springaction.springidol;
+public class Juggler implements Performer {
+	private int beanBags = 3;
+	public Junggler() {}
+	public Junggler(int beanBags) {
+		this.beanBags = beanBags;
+	}
+	public perform() throws PerformanceException {
+		System.out.println("JUGGLING " + beanBags + " BEANBAGS");
+	}
+}
+在Spring配置文件中声明
+spring-idol.xml
+<bean id="duke" class="com.springaction.springidol.Juggler" />
+当Spring容器加载Bean时，Spring江永默认构造器来实例化duke Bean
+为了给Duke一个表演的环境，需要加载一个Spring上下文,之后让duke表演
+ApplicationContext ctx = new ClassPathXmlApplicationContext("com/springaction/springidol/spring-idol.xml");
+Performer performer = (Performer) ctx.getBean("duke");
+performer.perform();
+结果：JUGGING 3 BEANBAGS
+
+评委觉得3个袋子不够，duke决定抛15个袋子，下面使用xml把Duke声明为一个可以同时抛15个袋子的杂技师：
+<bean id="duke" class="com.springaction.springidol.Juggler">
+	<constructor-arg value="15" />
+</bean>
+Duke表演时：JUGGING 15 BEANBAGS
+(构造器注入，通过constructor-arg声明入参)
+
+Duke其实还会朗诵诗歌，如果一边表演杂技一边朗诵诗歌，则获得冠军的可能性就很打
+这时Duke其实就不仅仅是Junggler了，他是PoeticJuggler
+package com.springaction.springidol;
+public class PoeticJuggler extends Juggler {
+	private Poem poem; //Poem引用
+
+	public PoeticJuggler(Poem poem) {//注入
+		super();//初始化Juggler，使其拥有杂技师技能
+		this.poem = poem;//Poem引用，使其可以朗诵诗歌
+	}
+
+	public PoeticJuggler(int beanBags, Poem poem) {
+		super(beanBags);//初始化Juggler，使其拥有15个袋子杂技师技能
+		this.poem = poem;//Poem引用，使其可以朗诵诗歌
+	}
+
+	public perform() throws PerformanceException {
+		super.perform();//杂技师表演
+		System.out.println("While reciting ");
+		poem.recite();
+	}
+
+}
+
+由于需要朗诵诗歌，所以需要定义Poem接口
+package com.springaction.springidol;
+public interface Poem {
+	void recite();
+}
+Poem类和bean
+public class Sonnet29 implements Poem {
+	private static String[] LINES = {"xxx","yyy"};
+	public Sonnet29() {}
+	public void recite() {
+		for (int i=0; i<LINES.length; i++) {
+			System.out.println(LINE[i]);
+		}
+	}
+}
+<bean id="sonnet29" class="com.sringaction.springidol.Sonnet29" />
+
+把poem赋予Duke
+<bean id="poeticDuke" class="com.sringaction.springidol.PoeticJuggler">
+	<constructor-arg value="15" />
+	<constructor-arg ref="sonnet29" />
+这样Duke就可以一边表演杂技，一边朗诵诗歌了
+
+factory-method属性
+大赛只有一个舞台，而舞台上只允许一个人表演，单例类
+package com.springaction.springidol;
+public class Stage {
+	private Stage() {}
+	private static class StageSingletonHolder {
+		static Stage instance = new Stage();//延迟加载
+	}
+	public static Stage getInstance() {
+		return StageSingleonHolder.instance;
+	}
+}
+没有public的构造函数，用factory-method声明bean
+<bean id="theStage" class="com.springaction.spingidol.Stage" factory-method="getInstance" />
+
+Bean作用域
+所有Spring Bean默认都是单例，即每次getBean都返回同一实例。有时需要覆盖这种行为
+（注：所有scope都是基于Application Context的，一般默认的就行）
+观看演出每个人必须收到不同的票，而不是同一张，所以需要把scope属性设置为prototype保证获取不同实例
+Spring支持的Bean作用域（scope='xxx'）：
+singleton:每一个Spring容器中，一个Bean定义只有一个实例（默认）
+prototype:每次调用都创建一个实例
+request:一次HTTP请签字，每个Bean对应一个实例，该作用域仅在基于web，如Spring MVC，中才有效
+session：一个HTTP Session中，每个Bean对应一个实例，该作用域仅在基于web，如Spring MVC，中才有效
+global-session:一个全局HTTP Session中，每个Bean对应一个实例，仅在Portlet上下文中有限
+
+初始化和销毁Bean
+init-method和destroy-method指定初始化和销毁Bean时执行的操作（针对Bean的）
+Auditorium为表演大厅类，表演开始前要开灯， 结束后要关灯
+public class Auditorium {
+	public void turnOnLights() {
+		...
+	}
+	public void turnOffLights() {
+		...
+	}
+}
+<bean id="auditorium" 
+	class="turnOffLights.Auditorium"
+	init-method="turnOnLights"
+	destory-method="turnOffLights" />
+Bean实例化后会调用turnOnLights，Bean从容器中销毁前，会调用turnOffLights
+default-init-method,default-destory-method，全局所有bean有效
+<beans xmlns
+	...
+	default-init-method="turnOnLights"
+	default-destory-method="turnOffLights"
+</beans>
+
+
+2.注入Bean属性
+通过set和get方法，以setter和getter方式注入
+Kenny是一个乐器演奏家
+package com.springaction.spingidol;
+public class Instrumentalist implements Performer {
+	public Instrumentalist() {}
+	public perform() throws PerformanceException {
+		System.out.println("Playing " + song + ":");
+		instrument.play();
+	}
+	private String song;
+	public void setSong(String song) { //注入歌曲
+		this.song = song;
+	}
+	public String getSong() {
+		return song;
+	}
+	public String screamSong() {
+		return song;
+	}
+	private Instrument instrument;
+	public void setInstrument(Instrument instrument) {//注入乐器
+
+	}
+}
+
+
+
+
+
+
+
+第十二章 Spring消息
+1. JMS
+Java消息服务（Java Message Service，JMS）是面向异步消息而制定的标准API，客户端发送消息，然后继续执行，不需要等待
+JMS中两个重要概念：消息代理，目的地（可以想象成邮局和收件人，寄件人把信给邮局后就走了，不需要等待回信，邮局负责寄送）
+JMS中有两种类型的目的地，队列（点对点模型）和主题（发布订阅模型）
+
+点对点模型
+一个消息有一个发送者和一个接收者，中间一个消息队列。
+JMS中可以有多个接收者监听队列，类似银行排队，多个柜员（接收者）多个客户（消息），客户相当于消息，投递给一个接收者，但具体是哪个不知道，由系统分配
+
+发布订阅模型
+消息会发送一个主题，多个接收者可以监听一个主题，但是不同的是消息会发送给所有订阅者，类似订阅报纸
+发布者不知道订阅者，消息被发送到一个特定主题，而发布者不知道谁在监听这个主题，更类似把报纸发布到报刊亭，想买的就去买
+
+JMS优点
+无需等待，提高性能
+面向消息和解耦，与RPC不同，JMS是以数据为中心，即客户端没有与特定方法绑定，任何可以处理数据的队列或主题订阅者都可以处理由客户端发送的消息，而客户端不必了解远程服务的任何规范
+位置独立，同步RPC服务需要网络地址来定位，如果服务IP或端口变了，客户端必须调整，否则无法访问服务。JMS客户端只需要知道通过哪个队列或主题获取消息，而不要关注服务来自哪里
+确保投递，同步服务必须监听指定IP和端口号，如果服务崩溃了客户的将不能继续处理。JMS发送消息，即使消息发送时服务不可用，消息也会被存储起来，直到服务可用
+
+
+2.在Spring中搭建消息代理（ActiveMQ）
+activemq jar包导入进来就能用
+用ActiveMQ做消息代理，必须配置JMS连接工厂，让它知道如何连接到ActiveMQ，ActiveMQConnectionFactory是ActiveMQ自带的连接工厂
+<bean id="connectionFactory"
+	class="org.apache.activemq.spring.ActiveMQConnectionFactory">
+	<property name="brokerURL" value="tcp://localhost:61616"/>
+</bean>
+
+(1)用ActiveMQ的Spring配置命名空间来声明连接工厂
+(注意，Spring中命名空间很重要，有了命名空间xmlns,ns namespace,才能用各种元素)
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns=...
+...
+	xmlns:jms="http://www.springframwork.org/schema/jms"
+	xmlns:amp="http://activemq.apahce.org/schema/core"
+...
+</benas>
+然后用<amq:connectionFactory>声明连接工厂
+<amq:connectionFactory id="connectionFactory"
+	brokerURL="tcp://localhost:61616">
+注意，如果使用不同的消息代理实现，则不一定有Spring命名空间，那就需要用<bean>来装配连接工厂
+（
+注：估计是这样
+<bean id="connectionFactory"
+	class="连接工厂class">
+	<property name="xxx" value="path"/>
+</bean>
+如果Spring提供了命名空间，则直接用指定的元素就可以配置，如<amq:connectionFactory，不需要bean，不用class
+）
+
+(2)声明ActiveMQ消息目的地
+可以是一个队列或主题
+<bean id="queue" class="org.apache.activemq.command.ActiveMQQueue">
+	<constructor-arg value="spitter.queue">
+</bean>
+
+<bean id="topic" class="org.apache.activemq.command.ActiveMQTopic">
+	<constructor-arg value="spitter.topic">
+</bean>
+
+还可以用ActiveMQ元素<amq:queue>
+<amq:queue id="queue" physicalName="spitter.queue" />
+
+主题用<amq:topic>
+<amq:topic id="topic" physicalName="spitter.topic" />
+
+
+3.使用Spring的JMS模板
+JMS为Java开发者提供了与消息代理进行交互来发送和接收消息的标准API，每一个消息代理都实现了JMS，所以不用因为不同的消息代理而学习私有API
+JMS虽然为所有消息代理提供了统一的接口，但是与JDBC的问题一样，太多冗余代码处理异常等，真正业务代码很少
+用Spring的JmsTemplate可以解决这个问题
+
+(1)在Spring配置文件中声明bean
+<bean id="jmsTemplate"
+	class="org.springframework.jms.core.JmsTemplate">
+	<property name="connectionFactory" ref="connectionFactory" />
+</bean>
+JmsTemplate必须知道如何连接到消息代理，所以connectionFactory属性设置实现了JMS的ConnectionFactory接口的Bean引用
+
+(2)发送消息
+public interface AlertService {
+	void sendSpittleAlert(Spittle spittle);
+}
+
+public class AlertServiceImpl implements AlertService {
+	public void sendSpittleAlert(Spittle spittle) {
+		jmsTemplate.send( //send方法发送消息
+			"spittile.alert.queue", //指定目标
+			new MessageCreator() {
+				public Message createMessage(Session session)
+					throws JMSException {
+					return session.createObjectMessage(spittle); //创建消息
+				}
+			}
+		)
+	}
+
+	@Autowired
+	JmsTemplate jmsTemplate; //注入JMS Template
+}
+send方法会负责JMS连接，会话并发送消息；MessageCreator内部类用于构造消息，其createMessage方法通过session构建了消息
+jmsTemlate会处理连接，管理会话，异常（这些代码如果不用temlate，必须自己写），JmsTemlate会把所有JMSException（注意，其他异常不能自动转换）转换从非检查型异常
+（对于因为编程错误而导致的异常，或者是不能期望程序捕获的异常（解除引用一个空指针，数组越界，除零，等等），为了使开发人员免于处理这些异常，一些异常被命名为非检查型异常（即那些继承自 RuntimeException 的异常）并且不需要进行声明）
+
+如果目的地址固定，则可以配置到xml里
+<bean id="jmsTemplate"
+	class="org.springframework.jms.core.JmsTemplate">
+	<property name="connectionFactory" ref="connectionFactory" />
+	<property name="defaultDestinationName" value="spittle.alert.queue"/>
+</bean>
+调用JmsTemplate就不用第一个参数了
+		jmsTemplate.send(
+			new MessageCreator() {
+		...
+
+(3)接收消息
+public Spittle getAlert() {
+	try {
+		ObjectMessage receivedMessage = 
+			(ObjectMessage) jmsTemplate.receive(); //调用receive方法接收消息
+		return (Spittle) receiveMessage.getObject(); //获取对象
+	} catch (JMSException e) {
+		throw JmsUtils.convertJmsAccessException(e);//转换后抛出
+	}
+}
+ObjectMessage转换类似Object转具体类型，还有这里处理异常的原因：只有用jmsTemplate才能自动转换异常，而getObject不是JmsTemplate的方法，所以没有自动异常转换
+receive方法是同步的，接收者会一直阻塞在receive，直到消息到来或者超时，这时JmsTemplate的缺点，用消息驱动POJO可以避免
+
+
+4.创建消息驱动的POJO（MDP）
+(1)创建消息监听器(POJO)
+package com.habuma.spitter.alerts;
+import com.habuma.spieeter.domain.Spittle;
+
+public class SpittleAlertHandler {
+	public void processSpittle(Spittle spittle) {
+		...
+	}
+}
+
+(2)配置监听器
+在Spring中把POJO配置为消息监听器,Spring的jms命名空间提供了需要的元素。
+首先把Handler声明为bean（注：只有声明为bean才能被引用）
+<bean id="spittleHandler"
+	class="com.habuma.spitter.alerts.SpittleAlertHandler" />
+
+然后，把Handler转化为消息驱动POJO，这需要注册消息监听器
+<jms:listener-container connection-factory="connectionFactory">
+	<jms:listener destination="spitter.alert.queue" ref="spittleHandler" method="processSpittle" />
+</jms:listener-container>
+消息监听容器是一个特殊的bean，可以监控JMS目的地并等待消息到达，一旦消息到达就取出消息并发送给感兴趣的监听器（注，监听者模式，通过回调函数实现）
+<jms:listener-container>定义容器，其中的<jms:listener>都用其中配置的connection-factory来监听消息，这里其实可以不配置连接工厂，因为默认就是connectionFactory（注：估计是可以自动装载，因为上下文中只有一个连接工厂bean）
+<jms:listener>标识一个Bean和一个处理消息方法，当消息到达destination，则调用ref中的method
+
+
+5.使用基于消息的RPC
+Spring提供了两种基于消息的RPC方案：
+Spring提供的JmsInvokerServiceExporter，可以把Bean导出为基于消息的服务，客户端使用JmsInvokerProxyFactoryBean来调用这些服务。
+Lingo通过JmsServiceExporter和JmsProxyFactoryBean提供了类似的基于消息的远程调用方法，支持异步调用
+
+(1)Spring基于消息的RPC
+Spring提供了许多将Bean导出为远程服务的方式，这里是导出基于JMS的服务
+package com.habuma.spitter.alerts;
+import com.habuma.spitter.domain.Spittle;
+public interface AlertService {
+	void sendSpittleAlert(Spittle spittle);
+}
+
+@Component("alertService")
+public class AlertServiceImpl implements AlertService {
+	...
+	public void sendSpittleAlert(Spittle spittle) {
+		...
+	}
+}
+
+因为AlertServiceImpl用了@Component标注，所以Spring会自动发现并注册为Spring Applicaton Context中ID为alertService的Bean，配置JmsInvokerServiceExporter时会引用这个bean：
+<bean id="alertSerivceExporter
+	class="org.springframwork.jms.remoting.JmsInvokerServiceExporter"
+	p:service-ref="alertService"
+	p:serviceInterface="com.habuma.spitter.alerts.AlertService" />
+(注：往往需要导出给其他系统用的bean都需要接口，对方通过接口来调用，估计是接口可以接收所有其实现类，而不局限于某个类，因为对方不知道这个bean具体实现了那个类，用接口可以兼容所有实现该接口的类)
+具体JMS通信细节由JmsInvokerServiceExporter负责，而且JmsInvokerServiceExporter可以作为JMS监听器
+<jms:listener-container connection-factory="connectionFactory">
+	<jms:listener destination="spitter.alert.queue" ref="JmsInvokerServiceExporter" />
+</jms:listener-container>
+
+访问JMS服务调用JmsInvokerProxyFactoryBean，它隐藏了访问服务的细节，并提供了一个接口用于客户端与服务端进行交互，其实就是代理了通过JmsInvokerServiceExporter所导出的JMS服务
+<bean id="alertService"
+	class="org.springframework.jms.remoting.JmsInvokerProxyFactoryBean">
+	<property name="connectionFactory" ref="connectionFactory" />
+	<property name="queueName" value="spitter.alert.queue" />
+	<property name="serviceInterface" value="com.habuma.spitter.alerts.AlertService" />
+</bean>
+connectionFactory，queueName指定了RPC消息会在连接工厂中配置的消息代理里面名为spitter.alert.queue的队列（注：工厂中配置用ActiveMQ，而ActiveMQ又也可配置队列，消息或主题）
+serviceInterface指定了代理服务使用com.habuma.spitter.alerts.AlertService发布
+Spring提供的方式并不是唯一和最好的，还有lingo
+
+(2)使用lingo实现异步RPC
+支持异步，当客户端发起请求时，服务端不需要处可用状态
+
+导出异步服务
+通过JmsServiceExporter，和JmsInvokerServiceExporter配置类似
+<bean id="alertSerivceExporter
+	class="org.logicblaze.lingo.jms.JmsInvokerServiceExporter"
+	p:service-ref="alertService"
+	p:serviceInterface="com.habuma.spitter.alerts.AlertService"
+	p:destination-ref="alertServiceQueue"
+	p:service-ref="alertService"
+	p:serviceInterface="com.habuma.spitter.alerts.AlertService" />
+<amq:queue id="alertServiceQueue" physicalName="spitter.alert.queue">
+因为JmsServiceExporter不能作为监听器，所以必须通过ConnectionFactory书信配置JMS连接工厂，通过destination配置消息目的地
+
+代理异步服务
+Spring调用JmsInvokerServiceProxy代理方法时，即使是JMS服务也只能等待
+Lingo的JmsProxyFactoryBean可以把没有返回值的方法作为异步方法
+<bean id="alertService"
+	class="org.springframework.jms.remoting.JmsProxyFactoryBean">
+	<property name="connectionFactory" ref="connectionFactory" />
+	<property name="queueName" value="spitter.alert.queue" />
+	<property name="serviceInterface" value="com.habuma.spitter.alerts.AlertService" />
+	<bean id="metadataStrategy"
+		class="org.logicblaze.lingo.SimpleMetadataStrategy">
+		<constructore-arg value="true">
+</bean>
+metadataStrategy规定了异步的策略，true表示这个服务的void的函数被视为单向的，可以直接返回而不需要等待，如果不配置metadataStrategy或为false则和Spring提供的方法一样，变成同步的了
+
+

@@ -910,9 +910,289 @@ unpark(Thread)唤醒
 6.Condition接口
 任意一个java对象都有Monitor（定义在java.lang.Object中），包括wait，wait(long)，notify()和notifyAll，这些方法与synchronized配合
 Condition接口提供了类似Object监视器方法，与Lock配合实现等待通知
+必须先获取Condition对象关联的锁才能调用Condition的方法
+一般会把Condition作为成员变量，调用await后当前线程释放锁并等待，其他线程调用Condition的signal方法后当前线程从await返回，这时已经获取锁了
+
+Lock lock = new ReentrantLock();
+Condition condition = lock.newCondition();//必须用lock的newCondition获取condition
+
+public void conditionWait() throws InterruptedException {
+	lock.lock();
+	try {
+		condition.await();
+	} finally {
+		lock.unlock();
+	}
+}
+
+public void conditionSignal() throws InterruptedException {
+	lock.lock();
+	try {
+		condition.signal();
+	} finally {
+		lock.unlok();
+	}
+}
+
+Conditon会自己处理繁琐的await，signal前后的加锁解锁问题，await自动释放，收到signal的线程自动获取
+
+原理： ConditionObject是同步器AbstractQueuedSyncronizer的内部类（Condition的操作需要获取锁，所以为内部类合理)，Condition管理一个等待队列（FIFO），signal：放到同步器的队列里参与调度，await：从同步器的队列里到Condition的队列
 
 
+第六章 并发容器和框架
+1. ConcurrentHashMap
+HashMap在多线程环境下可能会导致死循环，HashTable效率又太低（synchronized保证，所以线程多的情况下只有一个线程可以访问，多线程读都做不到）
+HashMap底层是一个Entry数组，当发生hash冲突的时候，hashmap是采用链表的方式来解决的，在对应的数组位置存放链表的头结点。对链表而言，新加入的节点会从头结点加入，假如A线程和B线程同时对同一个数组位置调用addEntry，两个线程会同时得到现在的头结点，然后A写入新的头结点之后，B也写入新的头结点，那B的写入操作就会覆盖A的写入操作造成A的写入操作丢失
+
+ConcurrentHashMap用锁分段技术，即多把锁，每一把锁用于锁容器其中一部分数据，则当多线程访问容器里不同数据段数据时，就不存存在竞争
+ConcurrentHashMap由Segment数组结构和HashEntry数组结构组成，Segment是一种可重入锁，HashEntry用于存储键值对。一个ConcurrentHashMap里包含一个Segment数组，一个Segment里包含一个HashEntry数组，每个HashEntry是一个链表结构的数据结构，每个Segment负责一个HashEntry数组，对HashEntry数组的数据进行修改时，必须先获得与其对应的Segment锁
+                 ConcurrentHashMap
+             ____________|______________
+            |                           |
+         Segment1                    Segment2
+    ________|________           ________|_________
+   |                 |         |                  |
+   HashEntry1.1   HashEntry1.2  HashEntry2.1   HashEntry2.2
+
+插入获取元素时必须先通过Hash定位Segment，然后在hash到具体HashEntry中，基于hashCode
+
+ConCurrentHashMap有：get，put和size操作
+
+2.ConCurrentLinkedQueue
+非阻塞多线程安全队列（FIFO），基于CAS算法
+               
+3. 阻塞队列
+用于生产者消费者场景，支持阻塞插入阻塞移除，即操作不成功则线程阻塞，直到可以操作为止
+Java中的的阻塞队列：（重点看有界和无界的区别）
+LinkedBlockingQueue：链表结构有界阻塞队列（最常用，有默认的最大长度，为Integer.MAX_VALUE，FIFO）
+还有一些其他的，如ArrayBlockingQueue：数组结构的有界阻塞队列（FIFO），还有支持优先级的，主要是LinkedBlockingQueue，因为无界的可能引起内存被占满的情况，即没有限制，而有界的可控，还有链表的常用，因为可以不用连续内存，而且FIFO，数组没有优势（数组的优势是下表索引快）
+
+阻塞队列的实现原理是基于Condition的，即Lock和Condition.signal，Condition.await
+
+4. Fork Join框架
+主要是把大人物分成小任务（Fork），Join把结果汇总。了解
 
 
+第七章 Java中的原子操作类
+AtomicBoolean，AtomicInteger，AtomicLong三种，基于CAS（compareAndSet方法），其中boolean类是转换成0,1整数进行CAS
+这几种的方法基本一样，比如AtomicInteger的方法：
+int addAndGet(int delta):以原子的方式将输入的数值与实例中的值，即AtomicInteger中的值，相加并返回结果
+boolean compareAndSet(int expect, int update):如果输入值等于预期值，则以原子方式将改值设为输入值
+int getAndIncrement:以原子方式加1，返回自增前的值（这个要注意，不是返回当前值）
+int getAndSet(int newValue):原子地设置为newValue，且返回旧值
+
+static AtomicInteger ai  = new AtomicInteger(1);
+System.out.println(a.get());
+System.out.println(a.getAndIncrement);
+
+(了解，不怎么用)
+原子更新引用类，用于多个变量，比如一个类的成员变量，AtomicReference（和AtomicInteger方法类似）
+原子更新字段类，更新类的某个字段，AtomicIntegerFiledUpdater
+
+
+第八章 Java中的并发工具类
+1.CountDownLatch
+一个或多个线程等待其他线程操作完成，加强版的join，CountDownLatch的构造函数参数为整形，如果想等待N个点，就传入N，当调用countDown方法时，N就会减一，CountDownLatch的await方法阻塞当前线程，知道N变成0
+main函数中new CountDownLatch，在具体线程类中引用，通过参数传进去（注意其用法）
+public class CountDownLatchDemo {
+	final static SimpleDateFormat sdf=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    public static void main(String[] args) throws InterruptedException {
+    	CountDownLatch latch=new CountDownLatch(2);//两个工人的协作，在这里new
+    	Worker worker1=new Worker("zhang san", 5000, latch);//把latch传进去
+    	Worker worker2=new Worker("li si", 8000, latch);
+    	worker1.start();//
+    	worker2.start();//
+    	latch.await();//等待所有工人完成工作
+        System.out.println("all work done at "+sdf.format(new Date()));
+	}
+    
+    
+    static class Worker extends Thread{
+    	String workerName; 
+    	int workTime;
+    	CountDownLatch latch;//在线程类中引用
+    	public Worker(String workerName ,int workTime ,CountDownLatch latch){
+    		 this.workerName=workerName;
+    		 this.workTime=workTime;
+    		 this.latch=latch;
+    	}
+    	public void run(){
+    		System.out.println("Worker "+workerName+" do work begin at "+sdf.format(new Date()));
+    		doWork();//工作了
+    		System.out.println("Worker "+workerName+" do work complete at "+sdf.format(new Date()));
+    		latch.countDown();//工人完成工作，计数器减一
+
+    	}
+    	
+    	...
+    }     
+}
+
+2.CyclicBarrier
+线程到达barrier被阻塞，等所有线程到达指定barrier后继续执行。类似CountDownLatch，不过更强大，因为有reset方法，中间可以重置要等的线程数
+join<CountDownLatch<CyclicBarrier
+用到时查，基本CountDownLatch就够用了
+
+3.Semaphore
+用于有限资源的控制，比如数据库连接
+public class SemaphoreDemo {
+	private static final int THREAD_COUNT = 30;
+	private static ExecutorServiceThreadPool = Executors.newFixedThreadPool(THREAD_COUNT);
+	private static Semaphore s = new Semaphore(10);// step1
+
+	public static void main(String[] args) {
+		for (int i=0; i<THREAD_COUNT; i++) {
+			threadPool.execute(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						s.aquire();//step2
+						System.out.println("Save");
+						s.release();//step3
+					} catch (InterruptedException e) {
+					...
+					}
+				}
+			})
+		}
+	}
+}
+
+4.Exchanger
+用于线程间交换数据，第一个线程执行exchange方法，等到第二个线程也执行exchange方法交换数据（了解）
+
+
+第九章 Java中的线程池
+线程池的优势：
+降低资源消耗，通过重复利用已创建的线程降低线程创建和销毁操作占用的资源
+提高响应速度，可以立即执行任务不用等待线程创建
+合理管理线程，可以通过线程池统一调配和监控，防止无限制创建线程消耗资源造成系统不稳定
+
+1.线程池原理
+ThreadPoolExecutor执行execute方法：
+（1）.如果当前运行的线程少于corePoolSize，则创建新线程来执行任务（这一步需要获取全局锁）
+（2）.如果运行的线程数等于或多余corePoolSize，则将任务加入BlockingQueue
+（3）.如果无法将任务放入BlockingQueue<Runnable>，即队列已满，则创建新线程来处理（这一步需要获取全局锁）
+（4）.如果创建新线程会使当前运行的线程超出maximumPoolSize，任务将被拒绝
+
+工作线程：
+线程池会把线程会封装Worker，Worker执行完任务后会循环获取BlockingQueue中的任务来执行（和普通线程不一样，普通的执行完就退出了）
+
+2.线程池的使用
+通过ThreadPoolExecutor来创建一个线程池
+new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, TimeUnit, runnableTaskQueue, handler);
+(1)corePoolSize,线程池的基本大小，当提交一个任务到线程池是，线程池会创建一个线程来执行任务，即使其他空闲的基本线程能执行新任务，等到需要执行的任务数大于线程池基本大小时就不再创建，如果调用了prestartAllCoreThread方法，线程池会提前创建并启动所有基本线程
+(2)runnableTaskQueue，任务队列，保存等待执行任务的阻塞队列，可以选择Java提供的各种阻塞队列，Executor.newFixedThreadPool用的是LinkedBlockingQueue，Executor.newCachedTheadPool使用SynchronousQueue（一个不存储元素的队列，每个插入操作必须等待另一个线程调用移除操作，否则插入处于阻塞状态）
+(3)maximumPoolSize:线程池最大数量，如果队列已满，而且创建的线程数小于最大数量，则线程池会创建新的线程执行任务，注意，如果使用了无界队列则个参数就没有作用了（无界队列不会满，除非内存满了）
+(4)keepAliveTime,线程池的工作线程空闲后，保持存活的时间，如果任务很多，每个任务时间短，可以调大时间，提高线程利用率
+(5)TimeUnit：线程存活时间单位，有DAYS，HOURS，MINUTES，MILISECONDS等
+(6)handler，线程拒绝策略（有好几种），默认为AbortPolicy，直接抛出异常
+还有threadFactory：线程工厂，主要用来创建线程
+
+两种提交任务方法（execute和submit）
+execute()用于提交不需要返回值的任务，所以无法判断任务是否被线程池执行成功
+threadPool.execute(new Runnable() {
+	@Override
+	public void run() {...}
+})
+submit()用于提交需要返回值的任务，线程池会返回一个Future对象，通过该对象判断任务是否执行成功，并且可以通过Future对象的get方法获取返回值，get方法会阻塞直至任务完成，还有get(long,timeUnit)超时阻塞方法
+Future<Object> future = executor.submit(haveReturnValueTaskThread);
+try {
+	Object s = future.get();
+} catch (Exception e) {
+	...
+} finally {
+	executor.shutdown();
+}
+
+3.线程池关闭
+shutdown或shutdownNow，原理：遍历线程池中的线程，然后逐个调用interrupt方法
+shutdownNow会把线程池置为STOP,然后停止所有正在执行和暂停的任务；而shutdown只把线程池设置为SHUTDOWN，中断没有执行任务的线程。
+如果任务不一定要执行完就用shutdownNow，否则用shutdown（一般用shutdown）
+
+4.配置
+CPU密集型任务配置尽可能小的线程，可以是CPU核数+1个线程；IO密集型由于任务线程不是一直在执行，所以配置尽可能多的线程，如2*CPU核数
+优先级队列PriorityBlockingQueue可以处理带优先级的任务
+数据库依赖的任务需要设置的大一些，因为线程等待数据库返回，等待时间越长，CPU空闲时间越长，这时就会有资源执行其他任务
+不要用无界队列，因为会充满服务器内存
+
+5.监控
+通过以下方法获取线程池的属性
+taskCount:线程池需要执行的任务量
+completedTaskCount:线程池在运行过程中已完成的任务数量，小于等于taskCount
+largestPoolSize：线程池里曾经创建过得最大线程数。可以知道线程池是否曾经满过，如果等于线程池最大大小就是满过
+getPoolSize：线程池线程数量，如果线程池不销毁，线程池里的线程不会自动销毁，这个数自增不减
+getActiveCount：活动线程数
+还可以通过重写beforeExecute，afterExecute和terminated方法自定义有关操作
+
+（注：如果线程池中的线程数量大于 corePoolSize时，如果某线程空闲时间超过keepAliveTime，线程将被终止，直至线程池中的线程数目不大于corePoolSize）
+
+
+第十章 Executor框架
+线程工作单元包括Runnable和Callable，执行机制由Executor提供
+
+1.Executor框架简介
+任务
+ |
+Executor框架
+ |
+线程池
+ |
+Kernel
+ |
+ CPU
+程序通过Executor框架控制上层调度，下层调度有操作系统控制
+
+(1)Executor框架的结构
+a.任务：被执行任务需要实现Runnable或Callable接口（
+I    Callable定义的方法是call，而Runnable定义的方法是run。
+II   Callable的call方法可以有返回值，而Runnable的run方法不能有返回值。
+III  Callable的call方法可抛出异常，而Runnable的run方法不能抛出异常。  ，而Thread是实现Runnable的，总体来说Runnable用的多，Callable了解就可以）
+b.任务的执行：接口Executor和继承自Executor的ExecutorService接口。Executor框架的ThreadPoolExecutor和ScheduledThreadPoolExecutor实现了ExecutorService
+c.异步计算结果：接口Future及其实现类FutureTask
+Executor接口将任务提交和任务执行分离；ThreadPoolExecutor是线程池的核心实现类，执行被提交的任务；ScheduledThreadPoolExecutor可以在给定延迟后运行命令或定期执行命令；Future接口和FutureTask代表异步执行结果；Runnable和Callable实现类都可以被ThreadPoolExecutor和ScheduleThreadPoolExecutor执行
+
+Executor框架使用：
+主线程———create————Runnable————execute或submit————ExecutorService（ThreadPoolExecutor或ScheduledThreadPoolExecutor）
+  |                                                    |
+  ————————get/cancel——————Future<V>—————————————return——
+主线程首先要创建Runnable或Callable接口的实现类对象，工具类Executor可以把一个Runnable对象封装成一个Callable对象（Executor.callable(Runnable Task)或Executor.callable（Runnable task, Object result））
+然后交给ExecutorService执行（ExecutorService.execute(Runnable command);或把Runnable或Callable对象提交给ExecutorService执行，ExecutorService.submit(Runnable task)或ExecutorService.submit(Callable<T> task）)
+如果执行submit则返回一个FutureTask对象，由于FutureTask实现了Runnable，所以可以创建FutureTask对象交给ExecutorService执行
+最后，主线程可以执行FutureTask.get()方法来等待任务执行完成，主线程也可以执行FutureTask.cancel(boolean)来取消此任务
+
+(2)Executor框架的成员
+a) ThreadPoolExecutor：一般是用工厂类Executors创建，Executors可以创建3种类型的ThreadPoolExecutor：SingleThreadExecutor，FixedThreadPool和CachedThreadPool
+
+(注，ThreadFactory接口用于自定义线程，比如给线程起名，封装等，通过实现其public Thread newThread(Runnable r)方法实现)
+FixeThreadPool（最常用），创建固定数的线程，Executor提供的，创建固定线程数的线程池的API
+public static ExecutorService newFixedThreadPool(int nThreads)
+public static ExecutorService newFixedThreadPool(int nThreads, ThreadFactory threadFactory);
+
+SingleThreadPool（适用于需要保证执行顺序的情况，任何时刻都不会有多线程情况），Executor提供的API：
+public static ExecutorService newSingleThreadExecutor()
+public static ExecutorService newSingleThreadExecutor(ThreadFactory threadFactory)
+
+CachedThreadPool(无界线程池，用于执行很多短期异步小任务情况)
+public static ExecutorService newCachedThreadPool()
+public static ExecutorService newCachedThreadPool(ThreadFactory threadFactory)
+
+b) ScheduledThreadPoolExecutor，包括ScheduledThreadPoolExecutor和SingleScheduledThreadPoolExecutor
+固定数目：
+public static ExecutorService newScheduledThreadPool(int corePoolSize)
+public static ExecutorService newScheduledThreadPool(int corePoolSize, ThreadFactory threadFactory)
+
+单个：
+public static ExecutorService newSingleThreadScheduledExecutor()
+public static ExecutorService newSingleThreadScheduledExecutor(ThreadFactory threadFactory)
+
+c) Future接口
+FutureTask，异步计算结果
+
+d) Runnable Callable
+Runnable转为Callable：
+callable(Runnable Task)
+callable（Runnable task, Object result））
+如果用第二种则FutureTask返回值可以get出结果，第一种则为null
 
 
