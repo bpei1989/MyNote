@@ -1,3 +1,145 @@
+第一章 Spring之旅
+1.简化Java开发
+为降低Java开发复杂性，Spring采取了以下几种关键策略：
+基于POJO的轻量级和最小入侵性编程；
+通过依赖注入和面向接口编程实现松耦合；
+基于切面和惯例进行声明式编程；
+通过切面和模板减少样式代码。
+
+(1)POJO
+单纯的Java类，不需要继承什么，这样就不会有什么限制，灵活，解耦
+
+(2)依赖注入
+骑士只能执行探险任务
+package com.springinaction.knights;
+public class DameslRecusingKnight implements Knight {
+	private RecueDaselQuest quest; //注意这里不是接口
+	public DamselRecusingKnight() {
+		quest = new RescueDameslQuest();//紧耦合
+	}
+	public void embarkOnQuest() throws QuestException {
+		quest.embark();
+	}
+}
+这个类只能执行RescueDamesl任务，其他的任务不能执行
+
+面向接口的依赖注入（如果没有接口，而是一个具体类，则依赖注入就没有意义了，因为那样只能注入一种类）
+package com.springinaction.knights;
+public class BraveKnight implements Knight {
+	private Quest quest;
+	public BraveKnight(Quest quest) {
+		this.quest = quest; //注入
+	}
+	public void embarkOnQuest() throws QuestException {
+		quest.embark();
+	}
+}
+BraveKnight没有自己创建探险任务，而是在构造时把探险任务作为构造器参数传进来，这就是依赖注入的方式之一，构造器注入
+还有传入类型是Quest，所以实现这个接口的所有类都可以执行，这就是依赖注入的好处，松耦合。如果一个对象只通过接口来表明依赖关系，而不是具体类，就能用不同具体实现类进行替换
+测试也很容易
+public class BraveKnightTest implements Knight {
+	Quest mockQuest = mock(Quest.class);//mockito
+	BraveKnight knight = new BraveKinght(mockQuest);//注入mock
+	knight.embarkOnQuest();
+	verify(...);
+}
+
+创建组件之间的协作称为装配。Spring有多种装配Bean方式，用XML配置最常用
+分配给骑士一个SlayDragon任务
+<beans
+...>
+	<bean id="knight" class="com.springinaction.knights.BraveKnight">
+		<!--注入-->
+		<constructor-arg ref="quest" />
+	</bean>
+	<bean id="quest" 
+		class="com.springinaction.knights.SlayDragonQuest" />
+</beans>
+Spring通过ApplicationContext装载Bean的定义，并组装它们。一般用ClassPathXMLApplicationContext加载classpath中的一个或多个xml
+public class KnightMain {
+	public static void main(String[] args) {
+		ApplicationContext context = new ClassPathXmlApplicationContext("knights.xml");//加载上下文
+		Knight knight = (Knight)context.getBean("knight");
+		kinght.embarkOnQuest();
+	}
+}
+这个类完全不知道接受哪种任务，没有意识到时由谁来执行，这些都是在knights.xml中定义，这就是依赖注入，或控制反转
+
+(3)切面
+依赖注入让相互协作的组件保持松耦合，AOP允许把通用的模块分离出来形成可重用组件
+吟游诗人记录了骑士的事迹
+public class Ministrel {
+	public void singBeforeQuest() {
+		System.out.println("The knight is brave!");
+	}
+	public void singAfterQuest() {
+		System.out.println("The knight finished the quest");
+	}
+}
+调用，如果在骑士类中加一个吟游诗人类成员变量则不合适，因为骑士不负责吟诗，骑士类复杂化，正确做法：
+Ministrel抽象成一个切面，在配置中声明
+<beans ...
+	在beans里配置aop的schema..>
+	<bean id="knight" class=class="com.springinaction.knights.BraveKnight">
+		<constructor-arg ref="quest" />
+	</bean>
+	<bean id="quest" 
+		class="com.springinaction.knights.SlayDragonQuest" />
+	<bean id="minstrel"
+		class="com.springinaction.knights.Minstrel" />
+	<aop:config>
+		<aop:aspect ref="minstrel">
+			<aop:pointcut id="embark"
+				expression="execution(* *.embarkOnQuest(..))"/> 切面
+			<aop:before pointcut-ref="embark"
+						method="singBeforeQuest" /> 前置声明
+			<aop:after pointcut-ref="embark"
+						method="singAfterQuest"/> 后置
+		</aop:aspect>
+	</aop:config>
+</beans>
+Minstrel是POJO，没有任何代码表示她要作为一个切面，其次，也是最重要的，Minstrel可以应用到BraveKnight中，而BraveKnight不需要显式调用它，实际上BraveKnight完全不知道Minstrel的存在
+
+(4)使用模板消除样式代码
+JDBC有很多与逻辑不相关的代码，用来处理异常等，可以用Spring提供的SimpleJdbcTemplate来简化，了解，因为有ibatis，所以不太会用jdbctemplate
+
+
+2.Bean
+Spring提供了多种容器，有BeanFactory和ApplicationContext，ApplicationContext基于BeanFactory，增加了面向应用的服务，如发布应用事件给事件监听者，一般都会用ApplicationContext
+(1)应用上下文
+Spring有好几种ApplicationContext，以下三种是经常遇到的
+ClassPathXMLApplicationContext，从classpath环境变量里的xml中加载上下文定义
+FileSystemXmlapplicationcontext,读取文件路径下的xml配置并加载上下文定义
+XmlWebApplicationContext，读取Web应用下的XML配置并加载上下文定义
+用法： 
+ApplicationContext ctx = new ClassPathXMLApplicationContext（"knight.xml"）；
+Knight knight = (Knight)context.getBean("knight");
+
+(2)Bean生命周期
+基本流程：实例化-填充属性-加载入上下文-bean可以使用了-容器关闭-销毁bean
+
+
+3.Spring整体架构
+Spring框架由如下模块组成
+(1)核心Spring容器：负责bean创建，配置和管理等，其中Bean Factory提供了依赖注入
+(2)AOP模块：面向切面编程模块
+(3)数据访问与集成：JdbcTemplate和对ORM框架的集成，如iBATIS
+(4)Web和远程调用：集成MVC，Spring MVC和远程调用
+(5)测试：集成测试模块来测试Spring应用
+
+
+Spring portfolio（portfolio 作品集）
+Spring Web Flow:基于Spring MVC并未基于流程的Web应用，比如购物车，提供支持
+Spring Web Service:将Bean以声明的方式发布为Web Service
+Spring Security：安全是一个重要的切面，基于Spring AOP，Spring Security提供了声明式的机制
+Spring Integraion：几种通用的应用集成模式，主要用于与其他应用交互
+Spring Batch：适用于对数据进行大量操作，批处理应用
+Spring Dynamic Modules:整合Spring的声明式依赖注入和OSGi的动态组件模型，Spring-DM可以采用模块化的方式构建应用，并在OSGi框架内以声明的方式发布和使用服务
+Spring LDAP：模板方式访问LDAP
+Spring Social，Spring Mobie，Spring Rich Client，Spring.Net,Spring Roo,Spring-Flex可以不看
+
+
+
 第二章 装配Bean
 1.声明bean
 Spring常用命名空间：
@@ -33,7 +175,8 @@ performer.perform();
 结果：JUGGING 3 BEANBAGS
 
 评委觉得3个袋子不够，duke决定抛15个袋子，下面使用xml把Duke声明为一个可以同时抛15个袋子的杂技师：
-<bean id="duke" class="com.springaction.springidol.Juggler">
+<bean id="duke" 
+	class="com.springaction.springidol.Juggler">
 	<constructor-arg value="15" />
 </bean>
 Duke表演时：JUGGING 15 BEANBAGS
@@ -78,7 +221,8 @@ public class Sonnet29 implements Poem {
 		}
 	}
 }
-<bean id="sonnet29" class="com.sringaction.springidol.Sonnet29" />
+<bean id="sonnet29" 
+	class="com.sringaction.springidol.Sonnet29" />
 
 把poem赋予Duke
 <bean id="poeticDuke" class="com.sringaction.springidol.PoeticJuggler">
@@ -99,7 +243,8 @@ public class Stage {
 	}
 }
 没有public的构造函数，用factory-method声明bean
-<bean id="theStage" class="com.springaction.spingidol.Stage" factory-method="getInstance" />
+<bean id="theStage" 
+	class="com.springaction.spingidol.Stage" factory-method="getInstance" />
 
 Bean作用域
 所有Spring Bean默认都是单例，即每次getBean都返回同一实例。有时需要覆盖这种行为
@@ -140,6 +285,11 @@ default-init-method,default-destory-method，全局所有bean有效
 通过set和get方法，以setter和getter方式注入
 Kenny是一个乐器演奏家
 package com.springaction.spingidol;
+public interface Instrument {
+	public void play();
+}
+
+package com.springaction.spingidol;
 public class Instrumentalist implements Performer {
 	public Instrumentalist() {}
 	public perform() throws PerformanceException {
@@ -158,9 +308,255 @@ public class Instrumentalist implements Performer {
 	}
 	private Instrument instrument;
 	public void setInstrument(Instrument instrument) {//注入乐器
-
+		this.instrument = instrument;
 	}
 }
+Instrumentalist有默认构造方法，所以可以声明为：（注：很重要，声明bean必须有构造方法，如果用set/get必须有无参构造方法）
+<bean id="kenny" class="com.springaction.spingidol.Instrumentalist" />
+
+注入简单值
+<property>元素用于配置Bean属性，与<constructor-arg>类似，区别：一个用set方法注入值，一个用有参构造函数注入值
+用setter赋予要表演的歌曲，还有表演者的年龄
+<bean id="kenny" 
+	class="com.springaction.spingidol.Instrumentalist">
+	<property name="song" value="Jingle Bells" />
+</bean>
+一旦bean实例化，就会调用set方法，而且不仅可以set String类型还可以是任意类型，假如表演者有一个age成员变量，为int型
+<bean id="kenny" 
+	class="com.springaction.spingidol.Instrumentalist">
+	<property name="song" value="Jingle Bells" />
+	<property name="age" value="37" />
+</bean>
+其中"37"在调用setAge之前会自动转为int型
+
+引用其他Bean
+Kenny是一个天才演奏家，可以演奏实现了Instrument接口的任意乐器，比如萨克斯
+public class Saxophone implements Instrument {
+	public Saxophone() {}
+	public void play() {
+		System.out.println("TOOT TOOT");
+	}
+}
+
+演奏之前先把萨克斯声明为一个bean，因为它没有属性需要设置，所以不用property
+<bean id="saxophone" 
+	class="com.springaction.spingidol.Saxophone"/ >
+
+然后赋给Kenny演奏
+<bean id="kenny2"
+	class="com.springaction.spingidol.Instrumentalist">
+	<property name="song" value="Jingle Bells" />
+	<property name="instrument" ref="saxophone" />
+</bean>
+
+给Kenny一个表演环境，让Kenny排练
+ApplicationContext ctx = new ClassPathCmlPllicationContext(
+		"com/springaction/springidol/spring-idol.xml");
+Performer performer = (Performer) ctx.getBean("kenny");
+performer.perform();
+该例展示了Spring的一个重要理念，面向接口编程。面向接口和依赖注入实现了松耦合
+Kenny还可以表演任何类型的乐器，只要它实现了Instrument接口
+
+Kenny因为很关注个人卫生，所以不想与他人共享萨克斯，声明一个内部bean就可以解决这个问题
+<bean id="kenny"
+	class="com.springaction.spingidol.Instrumentalist">
+	<property name"song" value="Jingle Bells" />
+	<property name="instrument">
+		<bean class="com.springaction.spingidol.Saxophone" />
+	</property>
+</bean>
+还可以声明为constructor-arg，内部bean虽然可以有id，但是一般不会写，因为内部bean无法被别的bean引用
+内部类会影响Spring XML的可读性，一般不要用
+
+使用Spring命名空间p装配属性
+<?xml ...
+http://www.springframework.org/schema/p
+...
+可以用p:song="Jingle Bells"，等价<property name="song" value="Jingle Bells" />
+
+装配集合
+<list> 装配list类型的值，允许重复
+<set> 装配set类型值，不允许重复
+<map> 装配map类型值，名称和值可以是任意类型
+<props> 装配properties类型的值，名称和值必须都是String型
+上面这几个分别对应List，Set，Map和Properites
+
+Hank可以演奏多种乐器，而且是同时演奏，相当于一个人的乐队
+public class OneManBand implements Performer {
+	public OneManBand() {}
+	public void perform() throws PerformanceException {
+		for(Instrument instrument : instruments) {
+			instrument.play();
+		}
+	}
+	private Collection<Instrument> instruments;
+	public void setInstruments(Collection<Instrument> instruments) {
+		this.instruments = instruments;
+	}
+}
+<bean id="hank"
+	class="com.springaction.spingidol.OneManBand">
+	<property name="instruments">
+		<list>
+			<ref bean="guitar"/>
+			<ref bean="piano"/>
+			<ref bean="drum"/>
+		</list>
+	</property>
+</bean>
+set和list类似，只是用set元素
+
+需要知道声音是哪个乐器产生的，可以用Map
+public class OneManBand implements Performer {
+	public OneManBand() {}
+	public void perform() throws PerformanceException {
+		for(String key : instruments.keySet()) {
+			System.out.print(key + ":");
+			instrument.play();
+		}
+	}
+	private Map<String, Instrument> instruments;
+	public void setInstruments(Map<String, Instrument> instruments) {
+		this.instruments = instruments;
+	}
+}
+<bean id="hank"
+	class="com.springaction.spingidol.OneManBand">
+	<property name="instruments">
+		<map>
+			<entry key="GUITAR" value-ref=="guitar"/>
+			<entry key="PIANO" value-ref=="piano"/>
+			<entry key="DRUM" value-ref=="drum"/>
+		</list>
+	</property>
+</bean>
+map有：key(String),key-ref(bean),value(String),value-ref(bean)
+
+Properties.这个感觉不太常用，基本和Map类似
+<props>
+	<prop key="GUITAR">STRUM STRUM</prop>
+	...
+
+props和property不一样，不要弄混，property是bean的属性，props是类似map的配置，其中每一项是prop
+
+还可以装配NULL,没有装配的其实默认为null，不过有时候需要确定必须为null，就用这个，感觉很少用
+<property name="nullproperty"null/></property>
+
+
+3.使用表达式装配（SpEL）
+装配属性到运行时才能知道，则用表达式装配，Spring Expression Language
+#{}就是SpEL的装配符，把括号里的值装配到property中
+支持直接写，比如value="#{5}"和5是等价的，"#{'abc'}"等价"abc"，ref="#{saxophone}"和ref="saxophone"等价，但一般不这么用，它的主要用处如下：
+
+carl可以模仿Kenny的歌曲，Kenny唱什么他就唱什么，就是只有当Kenny运行时才知道具体模仿什么歌
+<bean id="carl"
+		class="com.springaction.spingidol.Instrumentalist">
+	<property name="song" value="#{kenny.song}" />
+</bean>
+执行效果等价于：(基于反射和动态加载)
+Instrumentalist carl = new Instrumentalist();
+carl.setSong(kenny.getSong);
+
+还可以支持选method，如果有个songSelector的bean，它有一个selectSong的方法，返回什么，carl就唱什么
+<property name="song" value="#{songSelector.selectSong()}"/>
+如果carl唱的歌都是大写的<property name="song" value="#{songSelector.selectSong().toUpperCase()}"/>
+如果selectSong返回空指针则不执行upper，<property name="song" value="#{songSelector.selectSong()?.toUpperCase()}"/>
+
+如果需要调用Math类，则可以用T()运算符
+<property name="nultiplier" value="#{T(java.lang.Math).random()}"/>
+
+如果是简单的符号运算，就可以直接写
+<property name="count" value="#{counter.toal*1.5 + 12}" /}
+<property name="count" value="#{counter.toal==12}" /}
+<property name="count" value="#{counter.toal==12 and counter.item gt 100}" /}
+
+?支持类似if else功能
+<property name="song"
+		value="#{kenny.song != null ? kenny.song : 'Greensleeves'}" />
+
+matches支持正则表达式
+
+（注：所有等于，大于，小于，and，or等都是返回true或false）
+
+访问集合成员
+<property name="city" value="#{cities[2]}" />
+从map中取
+<property name="city" value="#{cities['Beijing']}"/>
+
+<util:properties>可加载一个properties配置文件
+<util:properties id="settings"
+	location="classpath:settings.properties"/>
+	<property name="accessToken" value="#{settings{'twitter.accessToken']}"/>
+(注：就是properties类型，读取一个文件，然后访问其中的value，类似map，不过可以从文件总读取)
+
+systemEnvironment环境变量
+<property name="homePath" value="#{systemEnvironment['JAVA_HOME']}"/>
+
+systemProperties可以查询Java程序的属性
+(注：不要把过于复杂的逻辑放到SpEL中)
+
+
+
+第三章 最小化Spring xml配置
+autowiring（自动装配），autodiscovery（自动检查）
+1.自动装配Bean
+byName，自动装配ID与该属性名字相同的Bean
+byType，自动装配类型与该属性相同的Bean，如果有多个则抛出异常，解决方法，可以用primary关键字声明那个是有先的
+constructor，自动装载入参是这个bean的构造器
+autodetect，首先尝试constructor，不成功则用byType
+默认自动装配：如default-autowire="byName"，如果某个bean指定用某种装配，则可以覆盖默认方式
+可以再xml配置,autowire="byType"但一般都是用注解
+
+2.注解自动装配
+命名空间<context:annotaion-config />,支持下面的注解：
+(1)@Autowired:
+自动装配Instrumentalist的instrument属性,之后就能移除装配instrument的property元素了
+@Autowired
+public void setInstrument(Instrument instrument) {
+	this.instrument = instrument;
+}
+用@Autowired后会尝试对该方法用byType自动装配
+不仅可以标注setter方法，还可以标注需要自动装配Bean的任意方法，包括构造器
+@Autowired
+public Instrumentalist(Instrument instrument){
+	this.instrument = instrument;
+}
+xml中没有<constructor-arg>，构造器自动装配
+
+还可以直接注解属性，删除setter方法,因为注解可以自动装载，不需要setter方法
+@Autowired
+private Instrument instrument;
+@Autowired不受制于private，可以装载任意部分
+
+如果注解没有找到Bean可以自动装载，则抛出异常，比后面抛出null异常要好
+属性不一定要装配，null也可以接受则用required=false注解
+@Autowired(required=false)
+private Instrument instrument;
+
+@Autowired可以注解构造器，只有一个构造器能@Autowired(required=true)，其他为false，如果有多个构造器，Spring会选择满足装配条件构造器中入参最多的那个（注，其实一般不会用注解构造器，了解）
+
+如果有至少两个Bean符合条件，可以用@Qualifier注解出具体是哪个Bean，如
+@Autowired
+@Qualifier("guitar")
+private Instrument instrument; //装载id为guitar的bean
+看起来@Qualifier等价于byName，其实@Qualifier将搜索范围将为只有一个bean，而byName是要搜索全部的
+还可以在Bean上直接用qualifier缩小范围
+<bean class="com.springinaction.springidol.Guitar">
+	<qualifier value="stringed">
+</bean>
+
+@Qualifier("stringed")
+public class Guitar implements Instrument{...}
+
+还可以自定义Qualifiler，基本思路就是对一个接口进行注解，然后直接用接口名作为一个限定器注解，了解
+
+(2)@Inject:
+@Autowired是Spring提供的，这个Spring支持，但不属于Spring的注解
+
+(3)@Resource:
+
+
+
 
 
 
