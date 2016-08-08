@@ -1196,3 +1196,66 @@ callable（Runnable task, Object result））
 如果用第二种则FutureTask返回值可以get出结果，第一种则为null
 
 
+2.ThreadPoolExecutor
+Executor框架中线程池的实现类是ThreadPoolExecutor：
+corePool：核心线程池大小
+maximumPool：最大线程池大小
+BlockingQueue：保存任务的工作队列
+RejectedExecutorHandler：ThreadPoolExecutor已关闭或已满（达到了最大线程池而且工作队列也满了）execute()调用的handler
+
+通过Executor的工具类Executors可以创建三种ThreadPoolExecutor
+（注，ExecutorService是ThreadPoolExecutor的接口，具体的线程池创建实际是ThreadPoolExecutor，newXXX是一个获取指定类型线程池的函数）
+1）.FixedThreadPool
+源码：
+public static ExecutorService newFixedThreadPool(int nThreads) {
+	return new ThreadPoolExecutor(nThreads, nThreads,
+								0L, TimeUnit.MILLISECONDS,
+								new LinkedBlockingQueue<Runnable>());
+}
+corePool,maximumPool都为nThreads，这个要注意，fixedTheadPool的核心和最大是相同的，keepAlive是多余空闲线程等待存活时间，超过这个时间就会被终止，这里0L是多余线程会被立即终止，其实这个应该没有多余线程，因为corePool==maximumPool
+LinkedBlockingQueue，无界队列，队列容量为Ingeger.MAX_VALUE。无界队列的影响如下：
+线程池中线程数目到达corePoolSize后，新任务会在队列中等待，线程不会超过corePoolSize，因为队列是无界的，所以maximumPoolSize实际是一个无效参数，keepAlive也是一个无效参数，因为队列无界，所以不会执行RejectedExecutorHandler，除非在线程池关闭时
+
+2）.SingleThreadPoolExecutor
+单个Worker线程的Executor，源码：
+public static ExecutorService newSingleThreadExecutor() {
+	return new FinalizableDelegatedExecutorService
+			(new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, 
+			new LinkedBlockingQueue<Runnable>()));
+}
+corePool,maximumPool都为1，其他和Fix一样，即SingleThreadPoolExecutor为nThread为1的FixedThreadPool
+
+3）.CachedThreadPool
+按需创建线程，corePoolSize是0，maximumPoolSize为Integer.MAX_VALUE，空闲时间为60秒，源码：
+public static ExecutorService newCachedThreadPool() {
+	return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+								60L, TimeUnit.SECONDS,
+								new SynchronousQueue<Runnable>);
+}
+SynchronousQueue没有容量，但由于maximumPool是无界的，所以会无限制创建线程
+
+（注：可以这么记，ThreadPool是一个概念，而具体是要执行的，即ThreadPoolExecutor，其execute或submit方法会提交线程，接口为ExecutorService）
+
+3.ScheduledThreadPoolExecutor
+继承自ThreadPoolExecutor，用来在给定延迟之后执行，或定时执行，类似Timer但更强大，Timer只对一个线程起作用，而ScheduledThreadPoolExecutor可以再构造器中指定多个后台线程数
+DelayQueue，无界队列，即maximumPool参数没作用。
+
+执行过程：
+1）调用ScheduledThreadPoolExecutor的scheduledAtFixedRate()或scheduleWithFixedDelay()，会向ScheduledThreadPoolExecutor的DelayQueue添加一个实现了RunnableScheduledFuture接口的ScheduledFutureTask
+2)从DelayQueue中取出ScheduledFutureTask，执行。
+
+原理：
+ScheduledFutureTask主要有3个成员变量：time（任务被执行的具体时间点），sequenceNumber（提交序号），peroid（任务执行间隔）
+使用DelayQueue为任务队列，DelayQueue封装了一个PriorityQueue，用于对队列中SheduledFutureTask进行排序，time小的再放在前面，相同时间比sequenceNumber，每次执行完成后，修改time值为下次要执行的时间，放回DelayQueue
+
+
+4.FutureTask
+FutureTask实现了Runnable接口和Future接口，主要用于返回submit提交的线程执行结果
+其实也可以放到线程池中执行，因为实现了Runnable
+基于AQS实现，内部有一个AbstractQueuedSynchronizer的子类，所有的public方法都是由这个类代理，get，run，cancel实际是执行的这个类的内部方法，因为需要同步。
+（注：需要同步的各种锁基本都是基于AQS的）
+
+
+
+第十一章 Java并发编程实践
+1. 生产者消费者模式
