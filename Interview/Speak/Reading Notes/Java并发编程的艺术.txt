@@ -1258,4 +1258,83 @@ FutureTask实现了Runnable接口和Future接口，主要用于返回submit提�
 
 
 第十一章 Java并发编程实践
-1. 生产者消费者模式
+1. 生产者消费者模式（直接用Java里的BlockingQueue，其put/get方法都已经同步了，不需要自己写Lock，如BlockinQueue<Message> msg，生产消费Message）
+不一定要用newXXX的线程池，可以用自己定义的
+public class QuickEmailToWikiExtractor extends AbstractExtractor {
+	private ThreadPoolExecutor threadsPool;
+	private ArticleBlockingQueue<ExchangeEmailShallowDTO> emailQueue;
+
+	public QuickEmailToWikiExtracor() {
+		emailQueue = new ArticleBlockingQueue<ExchangeEmailShallowDTO>();//lazy初始化，这个用法需借鉴，需要时再初始化
+		int corePoolSize = Runtime.getRunTime().availableProcessors()*2;//根据CPU核数计算线程池corePoolSize
+		threadsPool = new ThreadPoolExecutor(corePoolSize, corePoolSize, 101, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<Runnable>(2000));//自定义线程池，最多2000个，延迟加载
+	}
+	public void extract() {...}
+	public void insertToWiki() {
+		confluenceService.login(USER,PASS);//定时登录
+		while(true) {
+			ExchangeEmailShallowDTO mail = emailQueue.poll(2, TimeUnit.SECONDS);//队列poll的用法
+			if(email == null)
+				break;
+			threadsPool.submit(new insertToWikiTask(email));//提交
+		}
+	}
+	...
+}
+
+如果有负载均衡的需要，就用哈希（HashMap等都是用的hash保证）
+
+生产者消费者模式中，队列的get，put需要try catch，可以包装一层
+public void put(Message msg) {
+	try {
+		messageQueue.put(msg);
+	} catch(InterruptedException e) {
+		Thread.currentThread().interrupt();
+	}
+}
+
+
+2.线上定位问题
+用TOP命令，H查看每个线程，1查看CPU
+CPU利用率100%，说明有GC或死循环；某线程一直是TOP10，说明性能有问题
+jstat命令可以查看GC，看是不是内存泄漏
+dump线程
+sudo -u admin jstack 31117>/tmp/dump,dump的线程ID是16进制的，可以用printf "%x"
+
+3.性能测试
+如果某个应用需要支持两万QPS，QPS每秒查询率，首先要知道该接口在单机上能支持多少QPS，单机支持1000,20台机器才行。
+启动压测程序，比如Jmeter，配置线程数，请求次数，任务间隔时长等，把这个程序部署在多台机器上执行，统计QPS和响应时长
+
+启动100个线程压测半小时
+测试开始后，登录服务器里查看目前有多少台机器在压测服务器，,程序端口为12200，用netstate：
+netstat -nat | grep 12200 -c
+10
+有十台机器在压测服务器。QPS为1400，程序开始报错无法获取数据库连接，数据库端口号3306
+netstat -nat | grep 3306 -c
+12
+增加数据库连接，响应时间降到了700，但是CPU利用率太高，加CPU
+
+增加核心线程池数和最大线程数为1024,查看线程数
+ps -eLf | grep java -c
+1520
+
+再次压测QPS没有明显增长，单机1800左右，响应时长在200毫秒
+
+优化SQL后执也是一个点
+
+其他命令：
+查看网络流量
+cat /proc/net/dev
+
+查看系统平均负载
+cat /proc/loadavg
+
+查看内存情况
+cat /proc/meminfo
+
+查看CPU
+cat /proc/stat
+
+
+/*************************The End*************************/
