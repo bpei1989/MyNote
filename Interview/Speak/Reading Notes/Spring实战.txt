@@ -552,15 +552,80 @@ public class Guitar implements Instrument{...}
 
 (2)@Inject:
 @Autowired是Spring提供的，这个Spring支持，但不属于Spring的注解
+@Inject与@Autowired类似，支持自动装配属性，方法，构造器，但不支持Qualifier，支持@Named("guitar")，基本和qualifier一样，支持自定义
+（注：一般不会用Inject，了解，因为和Autowired功能太类似，有Autowired为什么要用Inject，Autowired毕竟是Spring提供的，支持性好一些）
 
-(3)@Resource:
+(3)在注解中使用表达式
+@Value，支持使用注解装配String类型和基本类型的值
+@Value("abc")
+private String song;//给song赋值为abc
+更常用的是使用SpEL
+@Value("#{systemProperties.myFavoriteSong}")
+private String song;
+
+
+3.自动检测Bean
+<context:component-scan>，除了完成与<context:annotation-config>一样的工作，还允许Spring自动检测Bean和定义Bean，即不用<bean>就可以实现基本所有Bean的定义和装配
+（<context:annotation-config>主要是消除property和constructor-arg，bean还是需要声明的）
+首先用<context:component-scan>代替<context:annotation-config>，指定包（包括这个包里的包）
+<beans xmlns=...
+...>
+	<context:componet-scan
+		base-package="com.springination.springidol">
+	</context:component-scan>
+</beans>
+
+(1)自动检测注解类
+默认，<context:component-scan>查找构造型注入所标注的类：
+@Component:通用构造型注解，标识该类为Spring组件
+@Controller:标识该类为Spring MVC controller
+@Resository:标注该类为数据仓库
+@Service:标注该类为服务
+如果上下文中仅有eddie和guitar两个Bean，可以用<context:component-scan>和@Component标注，这样就不用xml<bean>了
+@Component
+public class Guitar implements Instrument {
+	public void play() {
+		System.out.println("strum strum");
+	}
+}
+
+@Component("eddie")
+public class Instrumentalist implements Performer {
+		...	
+}
+指定Bean id为eddie，默认是类名首字母小写，如instrumentalist
+(注：Component相当于声明普通bean，可以规定bean id，不过一般都是用默认的小写首字母类名，其内部还可以用@Autowired等)
+
+(2)过滤组件扫描
+可以通过<context:include-filter>或<context:exclude-filter>为<context:component-scan>定义扫面范围
+（了解，一般不会故意跳过某些类，如果需要直接就把该类写到别的包）
+
+
+4.使用Spring基于Java的配置
+使用@Configuration注解后，就不用<beans>了
+这个基本思路是@Configuration注解命名空间等配置部分，这个部分用类实现，然后其余普通类用@Bean注解
+（了解，这个基本不怎么用，因为配置用类还不如放在xml里，最常用的是@Autowired和@Controller,@Service等）
 
 
 
+第四章 面向切面
+1.什么是AOP
+(1)通知(Advice）：规定切面是什么，何时使用，切面可以使用五中类型：
+Before,方法调用之前调用通知
+After,方法调用之后调用通知，无论方法是否成功
+After-returnning,方法执行成功之后调用通知
+After-throwing,方法抛出异常时调用通知
+Around，通知包裹了通知的方法，在通知方法调用之前和调用之后执行的自定义行为
 
+(2)连接点（Joinpoint）：在应用执行过程中能够插入切面的一个点，这个点可以是调用方法时，抛出异常时等，切面代码可以李忠这些点插入到应用中
 
+(3)切点(Pointcut)：何处，匹配导致要植入的一个或多个连接点
 
+(4)切面(Aspect)：通知和切点的集合，即什么，在何时在何处
 
+(5)引入(Introduction):
+
+(6)织入(Weaving):
 
 
 
