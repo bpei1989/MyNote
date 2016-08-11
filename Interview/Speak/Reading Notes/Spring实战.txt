@@ -994,7 +994,67 @@ public String addSpitterFromForm(@Valid Spitter spitter,
 }
 重定向到/spitters/用户名，如/spitters/liming
 
+处理带有变量的路径
+@RequestMapping(value="/{username}", method=RequestMethod.GET)
+public String showSpitterProfile(@PathVarible String username, Model model) {
+	model.addAttribute(spitterService.getSpitter(username));
+	return "spitters/view";
+}
+路径里{username}实际上是占位符，团队已合格了使用@PathVariable注解的username参数，即会填充路径里的username占位符
 
+(3)校验输入
+@Valid告诉Spring在将表单绑定在Spitter对象时，要校验，如果出错，校验错误将会作为参数BindingResult的形式传递进来
+（注，了解，这里介绍了各种校验规则，一般都是用@xxx来写，不过校验一般是放在前端的，如果什么都在后台校验则效率太低）
+
+
+5.文件上传
+在注册表单添加一个文件上传域
+修改SpitterController的addSpitterFromForm以接收上传的文件
+在Spring中配置multipart文件处理器
+(1)文件上传域
+以下部分会被浏览器解析为上传
+<tr>
+	<th><label for="image">Profile image:</label></th>
+	<td><input name="image" type="file" />
+</tr>
+还有一部分JSP的表单，可以忽略，因为不同的前端处理不一样，基本知道需要有个上传的就行
+
+(2)接收文件上传
+@RequestMapping(method=RequestMethod.POST)
+public String addSpitterFromForm(@Valid Spitter spitter,
+	BindingResult bindingresult,
+	//重点。value是前端的变量名，required指是否必须，而类型是MultipartFile，多媒体都用这个类型
+	@RequestParam(value="image",required=false) MultipartFile image) {
+	if(bingdingResult.hasErrors()) { //检查错误
+		return "spitters/edit";
+	}
+	spitterService.saveSpitter(spitter);
+	try {
+		if(!image.isEmpty()) {
+			validateImage(image);
+			saveImage(spitter.getId() + ".jpg", image);
+		}
+	} catch (xxx) {
+		bindingResult.reject(e.getMessage());
+		return "spitters/edit";
+	}
+	return "redirect:/spitters/" + spitter.getUsername();
+}
+
+调用wirteByteArrayToFile保存jpg
+File file = new File(xxx);
+FIleUtils.writeByteArrayToFile(file, image.getBytes());
+
+(3)Spring中文件上传
+DispatcherServlet不知道如何处理multipart表单，需要一个multipart解析器把POST中的multipart数据抽取出来，multipart的bean id必须为multipart，否则DispatcherServlet会找不到
+<bean id="multipartResolver" class=
+	"org.springframework.web.multipart.commons.CommonsMultipartResolver"
+	p:maxUploadSize="500000"/>
+规定了最大上传大小
+
+
+
+第八章 Spring Web Flow
 
 
 
