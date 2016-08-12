@@ -1055,6 +1055,173 @@ DispatcherServlet不知道如何处理multipart表单，需要一个multipart解
 
 
 第八章 Spring Web Flow
+Spring Web Flow是一个Web框架，适用于元素按规定流程运行的程序，它是Spring MVC的扩展，支持开发基于流程的应用程序
+Spring Web Flow不是Spring框架的一部分，是一个子项目，所以需要下载jar包
+首先，声明命名空间
+http://www.springframework.org/echema/webflow-config
+
+织入流程执行器，<flow:flow-executor>会创建一个流程执行器：
+<flow:flow-executor id="flowExecutor" flow-registry="flowRegistry" />
+flowExecutor负责创建和执行流程，但并不负责加载流程定义，这个是由flow registry负责
+
+配置流程注册表
+<flow:flow-registry id="flowRegistry" base-path="/WEB-INF/flows">
+	<flow:flow-location-pattern value="*-flow.xml"/>
+</flow:flow-registry>
+类似ViewResolver，这个也是前后缀，在/WEB-INF/flows查找，以-flow.xml结尾都视为流程的定义
+还可以直接指定
+<flow:flow-registry id="flowRegistry">
+	<flow:flow-locatoin id="pizza"
+			path="/WEB-INF/flows/springpizza.xml" />
+</flow:flow-registry>
+注意，如果没有id，则用xml的名字为id，springpizza
+
+处理流程请求
+FlowHandlerMapping帮助DispatcherServlet将请求流程发送给Spring Web Flow
+<bean class="org.springframework.webflow.mvc.servlet.FlowHandlerMapping">
+	<property name="flowRegistry" ref="flowRegistry" />
+</bean>
+
+视图状态（<view-state>）,可以是Spring支持的任意视图，如JSP，<view-state id="welcome" />即展现逻辑视图welcome，也可以明确说明
+<view-state id="welcome" view="greeting" />
+
+行为状态,<action-state>，出发Bean的方法并根据调用的结果转移状态
+<action-state id="saveOrder">
+	<evaluate expression="pizzaFlowActions.saveOrder(order)"/>
+	<transistion to="thankYou" />
+</action-state>
+evaluate是要做的事情，即pizzaFlowActionsbean的saveOrder方法
+
+决策状态
+<decision-state id="checkDeliverArea">
+	<if test="xxx.yyy()"
+		then="addCustomer"
+		else="deliveryWarning" />
+</decision-state>
+如果xxx bean的yyy方法返回true则跳到addCutomer
+
+子流程状态
+<subflow-state id="order" subflow="pizza/order">
+	<input name="order" value="order"/>
+	<transition on="orderCreated" to="payment" />
+</subflow-state>
+subflow-state允许在一个正在执行的流程中调用另一个流程，类似一个方法中调另一个方法
+input类似于入参，如果子流程的end-state是orderCreated,则跳转到流程payment
+
+结束状态
+<end-state id="cutomerReady">
+就是流程的结束
+
+转移流程
+<transition to="xxx"/> 跳转到xxx流程
+（这块看起来比较乱，实际就是用transition在各个状态之间跳转，在这之前还要注册Servlet和配置，其中view-state是前端要显示的页面，行为状态执行函数）
+
+
+
+第九章 Spring Security
+安全其实是一个切面，而Spring Security是基于Spring AOP和Servlet Filter实现的
+Security的xml一般单独放在一个文件里，如spitter-security.xml，加命名空间，否则需要对需要加安全的bean加security前缀
+
+代理Servlet过滤器
+<filter>
+	<filter-name>springSecurityFilterChain</filter-name>
+	<filter-class>
+		org.springframework.web.filter.DelegatingFilterProxy
+	</filter-class>
+</filter>
+DelegatingFilterProxy将任务分配给servlet.Filter实现类，这个类作为一个bean注册在Spring xml中
+DelegatingFilterProxy的filter-name是有意义的，Spring Security自动创建id为springSecurityFilterChain的Bean，名字必须一样
+
+基本配置
+<http auto-config="true">
+	<intercept-url pattern="/** access="ROLE_SPITTER" />
+</http>
+对/**访问控制，有ROLE_SPITTER权限才行，auto-config可以省很多配置，包括登录页面，HTTP基本认证，退出。
+等价：
+<http>
+	<form-login />
+	<http-basic />
+	<logout />
+	<intercept-url pattern="/** access="ROLE_SPITTER" />
+</http>
+
+通过表单进行登录
+如果用auto-config，则登录也就是/spring_security_login，不过一般都需要自定义登录页面
+<http auto-config="true" use-expression="false">
+	<form-login login-processing-url="/static/j_spring_security_check"
+				login-pagre="/login"
+				authentication-failure-url="/login?login_error=t"/>
+</http>
+登录页面/login，认证失败跳转/login?login_error=t，login-processing-url是登录表单提交回来进行用户认证的URL（没明白）
+
+处理基本认证
+通过HTTP请求本身对访问用户认证，就是浏览器弹出输入用户名密码的情况
+<http-basic>，没有什么配置，只有开启和关闭两种选项（书上没说明具体情况）
+
+拦截请求
+<intercept-url pattern="/** access="ROLE_SPITTER" /> 拦截所有页面
+<intercept-url pattern="/admin/*** access="ROLE_ADMIN"> /admin需要ROLE_ADMIN	权限
+可以用任意条<intercept-url 保护，但是起作用顺序是由上而下，如果把拦截所有页面的放在上面则下面的就会失效
+
+安全表达式
+如hasRole(role),isAuthenticated(),isRememverme等
+<intercept-url pattern="/admin/***" access="hasRole('ROLE_ADMIN') and hasIpAddress('192.xxx)" />
+这样可以为一个路径加多个限制，通过and
+
+HTTPS
+<intercept-url pattern="/spitter/form" requires-channel="https"/>
+
+保护前端的元素
+这个是保护JSP元素的，比如在网页首部显示欢迎之类的
+欢迎 <security:authentication property="principal.username" />
+property是认证用户对象的属性，可以包括credentials,authorities,principal等，Velcocity也有一套类似的命令
+如果想把property赋给一个变量则：
+<security:authentication property="principal.username" var="userid"/> userid存的是username
+
+认证用户
+基本就是从不同的数据源取用户，认证
+就是用户名密码权限，基于配置的
+还需要一个认证管理器，认证管理器把认证的任务委托给一个或多个authentication-provider，这个service帮忙认证
+<authentication-manager>
+	<authentication-provider user-service-ref="userService" />
+</authentication-manager>
+<authentication-provider>
+	<user-service id="userService">
+		<user name="habuma" password="letmein" authorities="ROLE_SPITTER,ROLE_ADMIN"/>
+		<user name="limei" password="letmein" authorities="ROLE_SPITTER,ROLE_ADMIN"/>
+	</user-service>
+</authentication-provider>
+
+还可以通过JDBC <jdbc-user-service>代替user-service，LDAP，<ldap-user-service>代替user-service，还可以加密<password-compare hash="md5"...>(了解)
+
+remember-me
+在http中加一个remember-me
+<http auto-config="true">
+	...
+	<remember-me key="spitterKey" token-validity-seconds="200000"/>
+</http>
+cookie中存一个token，指定有效时间20000，cookie中的token包括用户名，密码，过期时间和秘钥，都是MD5加密
+
+保护方法调用
+@Secured注解
+@Secured("ROLE_SPITTER")
+public voiid xxx() {
+	...
+}
+只有ROLE_SPITTER权限才能调用
+
+
+
+第十一章 Spring REST
+ 
+
+
+
+
+
+
+
+
 
 
 
