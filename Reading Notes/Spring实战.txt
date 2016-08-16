@@ -1329,6 +1329,7 @@ JaxWsPortProxyFactoryBean通过WSDL为服务创建代理，JaxWsPortProxyFactory
 	p:portName="spitterServiceHttPort"
 
 
+
 第十一章 为Spring添加REST功能
 1.了解REST
 REST的常见错误认识：一种基于URL的Web服务；另一种RPC，就像SOAP，区别只是基于SOAP和URL而已
@@ -1336,22 +1337,110 @@ REST的常见错误认识：一种基于URL的Web服务；另一种RPC，就像S
 尽管URL在REST中起了重要作用，但并不是REST的全部
 REST，representational，State，Transfer，表述性状态转移，REST就是将资源的状态以最合适的形式从服务器转移到客户端
 
+Spring如何REST支持：
+Controller可以处理所有HTTP方法，包括GET,PUT,DELETE,POST;
+@PathVariable注解可以将变量输入作为URL的一部分，处理参数化的URL；
+通过Spring View和ViewResolver，资源可以以包括xml，json等各种形式表述；
+使用ContentNegotiatingViewResolver选择最适合客户端的表述；
+基于View的可以用@ResponseBody注解和各种HttpMethodConverter来实现；
+@responseeBody注解和HttpMethodConverter实现可以将传入HTTP数据转化为传入Contoller方法的Java对象
+RestTemplate简化客户端对REST资源的使用
 
 
+2.编写面向资源的Controller
+RESTLess URL面向动作，如http://localhost:8080/Spitter/displaySpittle.htm?id=123
+REST URL不仅可以定位资源还可以标识资源
+http://localhost:8080/Spitter/spittles/123
+
+执行REST动作：
+@RequestMapping(method=RequestMethod.GET)
+public String showSpittle(@RequestParam("id") long id, Model model) {
+	model.addAttribute(spitterService.getSpittleById(id));
+	return "spittles/view";
+}
+
+@RequestMapping(value="{/id}", method=RequestMethod.PUT)
+@ResponseStatus(HttpStatus.NO_CONTENT)
+public void putSpittle(@PathVariable("id") long id, @Valid Spittle(spittle)) {
+	spitterService.saveSpittle(spittle);
+}
+
+@RequestMapping(value="{/id}", method=RequestMethod.PUT)
+@ResponseStatus(HttpStatus.NO_CONTENT)
+public void putSpittle(@PathVariable("id") long id, @Valid Spittle(spittle)) {
+	spitterService.deleteSpittle(spittle);
+}
+
+使用POST创建资源
+@RequestMapping(method=RequestMethod.POST)
+@ResponseStatus(HttpStatus.CREATED) //201 http
+public @ResponseBody Spittle createSpittle(@Valid Spittle spittle, BindingResult result, HttpServletResponse response) throws BindException {
+	if(result.hasErrors()) {
+		throw new BindException(result);
+	}
+
+	spitterService.saveSpittle(spittle);
+	response.setHeader("Location", "/spittles/" + spittle.getId());
+	return spittle;
+}
 
 
+3.表述资源
+ContentNegotiaingViewResolver会确定请求的类型(通过Accept头)，然后找到请求的最佳视图
+<bean class="org.springframework.web.servlet.view.ContentNegotiatingViewResolver">
+	<property name="mediaTypes">
+		<map>
+			<entry key="json" value="application/json" />
+			<entry key="xml"  value="text/xml" />
+			<entry key="htm"  value="text/html" />
+		</map>
+	</property>
+	<property name="defaultContentType" value="text/html" />
+</bean>
+
+客户端提交PUT请求，包含json
+(Content-Type必须是application/json，需要Jackson json库)
+@RequestMapping(value="/{username}", method = RequestMethod.PUT,
+				headers = "Content-Type=application/json")
+@ResponseStatus(HttpStatus.NO_CONTENT)
+public void updateSpitter(@PathVariable String username, @RequestBody Spitter spitter) {
+	spitterService.saveSpittert(spitter);
+}
 
 
+4.REST客户端
+public Spittle[] retrieveSpittlesForSpitter(String username) {
+	try {
+		HttpClient httpClient = new DefaultHttpClient();
+		//构建URL
+		String spitterUrl = "http://localhost:8080/Spitter/spitters/" + username + "/spittles";
+		HttpGet getRequest  = new HttpGet(spittleUrl);
+		getRequest.setHeader(new BasicHeader("Accept", "application/json"));
+		HttpResponse response = httpClient.execute(getRequest);
+		HttpEntity entity = response.getEntiry();
+		ObjectMapper mapper = new ObjectMapper();
+		return mapper.readValue(entity.getContent(), Spittle[].class);
+	} catch (IOException e) {
+		throw xxx;
+	}
+}
 
 
+5.resttemplate
+可以避免冗余代码
+public Spittle[] retrieveSpittlesForSpitter(String username) {
+	ResponseEntiry<Spittle[]> response = new RestTemplate().getForEntity(
+		"http://localhost:8080/Spitter/spitters/{spitter}/spittles",
+		Spittle[].class, username);
+	if(response.getStatusCode() == HttpStatus.NOT_MODIFIED) {
+		Excpetion
+	}
+	return response.getBody();
+}
+其他操作类似，即简化代码
 
 
-
-
-
-
-
-
+HiddenHttpMethodFilter是在浏览器表单发送PUT和DELET请求时需要用的，由于PUTheDELETE请求表单，都会以PUT处理，这个Filter是把DELETE解析出，然后在DispatcherServlet之前转换为DELET并交给method处理（了解）
 
 
 
