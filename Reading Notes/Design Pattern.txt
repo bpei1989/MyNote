@@ -1,0 +1,275 @@
+设计模式的分类：创建型模式（如工厂模式，单例模式等）；结构型模式（如代理模式，装饰器模式等）；行为模式（如观察者，责任链模式）
+
+设计模式的六大原则：
+总原则：开闭原则，对扩展开发，对修改关闭；基本可以理解为往可扩展可维护的方向努力
+(1)单一职责原则：每个类应该负责一种职责，否则就把类拆开
+(2)里氏替换原则：子类对父类的方法尽量不要重载
+(3)依赖倒转原则：面向接口编程，依赖抽象，比如Spring就是面向接口编程
+(4)接口隔离原则：接口中不存在子类不需要的方法，如果存在就必须拆接口
+(5)迪米特法则：一个类对自己以来的类知道的越少越好
+(6)合成复用原则:聚合优于集成
+
+
+
+一、创建模式
+0.简单工厂模式
+通过一个工厂类创建实现了同一接口的类的实例
+例：发送邮件和短信
+public interface Sender {
+	public void send();
+}
+
+public MailSender implements Sender {
+	@Override
+	public void send() {
+		System.out.println("Sending mail");
+	}
+}
+
+public MessageSender implements Sender {
+	@Override
+	public void send() {
+		System.out.println("Sending message");
+	}
+}
+
+public class SendFactory {
+	public Sender produce(String type) {
+		if(type.equals("mail")) {
+			return new MailSender();
+		}
+		if(type.equals("message")) {
+			return new MessageSender();
+		}
+		return null;
+	}	
+}
+注：适用于创建实现了同一个接口的类，缺点是如果要发送语音就需要修改工厂方法，可扩展性不好
+
+
+1.工厂方法模式
+创建一个工厂接口和多个工厂实现类，需要新功能的时候直接增加新的工厂类即可，而不需要修改原有代码
+public interface Sender() {
+	public void send();
+}
+
+public class MailSender implements Sender {
+	@Override
+	public void send() {
+		System.out.println("Sending message");
+	}
+}
+
+public class MessageSender implements Sender {
+	@Override
+	public void send() {
+		System.out.println("Sending message");
+	}
+}
+
+public interface Provider {
+	public Sender produce();
+}
+
+public class SendMailFactory implements Provider {
+	@Override
+	public Sender produce() {
+		return new MailSender();
+	}
+}
+
+public class SendMessageFactory implements Provider {
+	@Override
+	public Sender produce() {
+		return new MessageSender();
+	}
+}
+
+public class Test {  
+	public static void main(String[] args) {  
+		Provider provider = new SendMailFactory();  
+		Sender sender = provider.produce();  
+		sender.Send();  
+	}  
+}  
+注：基本思路就是创建一个生产工厂的工厂，各个工厂分别生产具体对象，如果需要增加一个发送语音的Sender，加一个实现Sender的类，一个工厂类实现Provider接口就可以
+
+
+2.抽象工厂模式
+多个抽象产品类，可有多个具体类
+一个抽象工厂类，可有多个具体工厂类
+每个具体工厂类可以创建多个具体产品类的实例
+
+与工厂方法模式的区别，工厂方法模式只有一个抽象产品类，具体工厂类只能创建一个具体产品类实例
+
+工厂可以生成鼠标键盘，抽象工厂的实现的对象都可以生产鼠标和键盘，但A工厂生产的是罗技的鼠标和键盘，B工厂生成的是联想的，这样A和B就是抽象工厂，每个工厂生成鼠标和键盘就是工厂方法。即抽象工厂方法类似工厂，而工厂方法类似产品线
+
+/*抽象工厂接口，和工厂方法模式不同，这里有多个生产方法
+生产多个产品，而工厂方法模式只能生产一种产品*/
+public interface AbstractFactory {  
+    public Mouse produceMouse();  
+    public Keyboard producekeyBoard();  
+}  
+
+public interface Mouse {  
+    public void getMouse();  
+} 
+
+public interface Keyboard {  
+    public void getKeyboard();  
+}  
+
+public class LogicMouse implements Mouse {
+	public void getMouse() {
+		System.out.println("Logic Mouse");
+	}
+}
+
+public class LogicKeyboard implements Keyboard {
+	public void getKeyboard() {
+		System.out.println("Logic KeyBoard");
+	}
+}
+
+public class LenovoMouse implements Mouse {
+	public void getMouse() {
+		System.out.println("Lenovo Mouse");
+	}
+}
+
+public class LenovoKeyboard implements Keyboard {
+	public void getKeyboard() {
+		System.out.println("Lenovo KeyBoard");
+	}
+}
+
+//具体工厂，生产罗技鼠标键盘
+public class ConcreateFactoryLogic implements AbstractFactory {  
+    @Override  
+    public Mouse produceMouse() {  
+        return new LogicMouse();  
+    }  
+  
+    @Override  
+    public Keyboard producekeyBoard() {  
+        return new LogicKeyboard();  
+    }  
+}  
+
+//具体工厂，生产联想鼠标键盘
+public class ConcreateFactoryLogic implements AbstractFactory {  
+    @Override  
+    public Mouse produceMouse() {  
+        return new LenovoMouse();  
+    }  
+  
+    @Override  
+    public Keyboard producekeyBoard() {  
+        return new LenovoKeyboard();  
+    }  
+}  
+
+
+3.单例模式
+保证该类只有一个实例存在，如默认Spring创建单例的Bean的实例
+public class Singleton {
+	private static Singleton instance = null; //延迟初始化
+	private Singleton() {}
+	public static synchronized Singleton getInstance() { //保证同步
+		if(instance == null) {
+			instance = new Singleton();
+		}
+		return instance;
+	}
+}
+
+
+4. 建造者模式
+将一个复杂的对象的构建与它的使用分离
+public interface Builder { 
+　　　　void buildPartA(); 
+　　　　void buildPartB(); 
+　　　　void buildPartC(); 
+　　
+　　　　Product getResult(); 
+　　} 
+
+   //具体建造工具
+　　public class ConcreteBuilder implements Builder { 
+　　　　Part partA, partB, partC; 
+
+　　　　public void buildPartA() {
+　　　　　　//这里是具体如何构建partA的代码
+　　　　}; 
+　　　　public void buildPartB() { 
+　　　　　　//这里是具体如何构建partB的代码
+　　　　}; 
+　　　　 public void buildPartC() { 
+　　　　　　//这里是具体如何构建partB的代码
+　　　　}; 
+　　　　 public Product getResult() { 
+　　　　　　//返回最后组装成品结果
+　　　　}; 
+　　}
+
+   //建造者
+　　public class Director {
+　　　　private Builder builder; 
+　　
+　　　　public Director( Builder builder ) { 
+　　　　　　this.builder = builder; 
+　　　　} 
+　　　　public void construct() { 
+　　　　　　builder.buildPartA();
+　　　　　　builder.buildPartB();
+　　　　　　builder.buildPartC(); 
+　　　　} 
+　　} 
+
+　　public interface Product { }
+　　public interface Part { }
+
+使用：
+　　ConcreteBuilder builder = new ConcreteBuilder();
+　　Director director = new Director( builder ); 
+　　
+　　director.construct(); 
+　　Product product = builder.getResult();
+
+
+5.原型模式
+将一个对象作为原型，对其进行复制、克隆，产生一个和原对象类似的新对象
+原型必须实现Cloneable接口，重写Object的clone方法，通过super.clone方法实现
+class Prototype implements Cloneable { 
+    public Prototype clone(){ 
+        Prototype prototype = null; 
+        try{ 
+            prototype = (Prototype)super.clone(); //重要的是这里
+        }catch(CloneNotSupportedException e){ 
+            e.printStackTrace(); 
+        } 
+        return prototype;  
+    } 
+} 
+ 
+class ConcretePrototype extends Prototype{ 
+    public void show(){ 
+        System.out.println("原型模式实现类"); 
+    } 
+} 
+ 
+public class Client { 
+    public static void main(String[] args){ 
+        ConcretePrototype cp = new ConcretePrototype(); 
+        for(int i=0; i< 10; i++){ 
+            ConcretePrototype clonecp = (ConcretePrototype)cp.clone(); 
+            clonecp.show(); 
+        } 
+    } 
+} 
+
+
+
+B. 结构模式
+6.适配器模式
+分类适配器模式，对象适配器模式，接口适配器模式
