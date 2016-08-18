@@ -272,4 +272,280 @@ public class Client {
 
 B. 结构模式
 6.适配器模式
-分类适配器模式，对象适配器模式，接口适配器模式
+主要分为三类：类的适配器模式、对象的适配器模式、接口的适配器模式
+(1)类的适配器模式
+public class Source {
+	public void method1() {  
+		System.out.println("this is original method!");  
+	}  
+}  
+
+public interface Target {  
+	/* 与原类中的方法相同 */  
+	public void method1();  
+	/* 新类的方法 */  
+	public void method2();  
+} 
+
+public class Adapter extends Source implements Target {  
+	@Override  
+	public void method2() {  
+		System.out.println("this is the target method!");  
+	}  
+}  
+这样Target接口实现类就有Source的功能了
+
+(2)对象的适配器模式
+不继承Source类，而是持有Source类的实例
+public class Wrapper implements Targetable {  
+	private Source source;  
+
+	public Wrapper(Source source){  
+		super();  
+		this.source = source;  
+	}  
+	@Override  
+	public void method2() {  
+		System.out.println("this is the targetable method!");  
+	}  
+
+	@Override  
+	public void method1() {  
+		source.method1();  
+	}  
+}  
+
+(3)接口的适配器模式
+一个接口中有多个抽象方法，写该接口的实现类时，必须实现该接口的所有方法，但有些时候不需要全部方法，此处为了解决这个问题，引入了接口的适配器模式，借助于一个抽象类，该抽象类实现了该接口，实现了所有的方法，而我们不和原始的接口打交道，只和该抽象类取得联系，所以写一个类，继承该抽象类，重写需要的方法就行
+public interface Sourceable {  
+	public void method1();  
+	public void method2();  
+}
+
+public abstract class Wrapper implements Sourceable{  
+	public void method1(){}  
+	public void method2(){}  
+}  
+
+public class SourceSub1 extends Wrapper {  
+	public void method1(){  
+		System.out.println("the sourceable interface's first Sub!");  
+	}  
+}  
+
+public class SourceSub2 extends Wrapper {  
+	public void method2(){  
+		System.out.println("the sourceable interface's second Sub!");  
+	}  
+}
+
+类的适配器模式：当希望将一个类转换成满足另一个新接口的类时，可以使用类的适配器模式，创建一个新类，继承原有的类，实现新的接口即可。
+对象的适配器模式：当希望将一个对象转换成满足另一个新接口的对象时，可以创建一个Wrapper类，持有原类的一个实例，在Wrapper类的方法中，调用实例的方法就行。
+接口的适配器模式：当不希望实现一个接口中所有的方法时，可以创建一个抽象类Wrapper，实现所有方法，我们写别的类的时候，继承抽象类即可。
+
+
+7.装饰器模式
+装饰对象和被装饰对象实现同一个接口，装饰对象持有被装饰对象的实例
+public interface Sourceable {  
+	public void method();  
+}  
+
+public class Source implements Sourceable {  
+	@Override  
+	public void method() {  
+		System.out.println("the original method!");  
+	}  
+}  
+
+public class Decorator implements Sourceable {  
+	private Sourceable source;  
+		public Decorator(Sourceable source){  
+		super();  
+		this.source = source;  
+	}  
+	@Override  
+	public void method() {  
+		System.out.println("before decorator!");  
+		source.method();  
+		System.out.println("after decorator!");  
+	}  
+}  
+装饰器模式的应用场景：
+1、需要扩展一个类的功能。
+2、动态的为一个对象增加功能，而且还能动态撤销。（继承不能做到这一点，继承的功能是静态的，不能动态增删。）
+缺点：产生过多相似的对象，不易排错！
+
+8.代理模式
+代理模式就是多一个代理类出来，替原对象进行一些操作，比如我们在租房子的时候回去找中介
+public interface Sourceable {
+	public void method();
+}
+
+public class Source implements Sourceable {  
+	@Override  
+	public void method() {  
+		System.out.println("the original method!");  
+	}  
+}  
+
+public class Proxy implements Sourceable {  
+	private Source source;  
+		public Proxy(){  
+		super();  
+		this.source = new Source();  
+	}  
+	@Override  
+	public void method() {  
+		before();  
+		source.method();  
+		atfer();  
+	}  
+	private void atfer() {  
+		System.out.println("after proxy!");  
+	}  
+	private void before() {  
+		System.out.println("before proxy!");  
+	}  
+}  
+代理模式的应用场景：如果已有的方法在使用的时候需要对原有的方法进行改进,采用一个代理类调用原有的方法，且对产生的结果进行控制。这种方法就是代理模式。
+
+代理模式和适配器模式：
+适配器模式是因为新旧接口不一致导致出现了客户端无法得到满足的问题，但是，由于旧的接口是不能被完全重构掉的，因为我们还想使用实现了这个接口的一些服务。那么为了使用以前实现旧接口的服务，我们就应该把新的接口转换成旧接口；实现这个转换的类就是抽象意义的转换器
+虽然代理也同样是增加了一层，但是，代理提供的接口和原本的接口是一样的，代理模式的作用是不把实现直接暴露给client，而是通过代理这个层，代理能够做一些处理
+适配器模式： Source-Adapter-Target
+                     |
+                   Clent
+代理模式： Client-Proxy-Source
+适配器是在需要在Target中用Source的方法，即两个不适配，需要中间有个转换
+代理是需要调用某种方法，Source不想直接和Client接触，或者Source的处理比较复杂等，通过代理包装处理后给Client
+
+
+9.Facade模式
+外观模式，将类与类之的关系放在一个Facade类中，降低了类类之间的耦合度
+电脑开关机的例子，电脑类就是个Facade
+public class CPU {  
+	public void startup(){  
+		System.out.println("cpu startup!");  
+	}     
+	public void shutdown(){  
+		System.out.println("cpu shutdown!");  
+	}  
+}  
+
+public class Memory {  
+	public void startup(){  
+		System.out.println("memory startup!");  
+	}  
+
+	public void shutdown(){  
+		System.out.println("memory shutdown!");  
+	}  
+} 
+
+public class Disk {  
+	public void startup(){  
+		System.out.println("disk startup!");  
+	}  
+	public void shutdown(){  
+		System.out.println("disk shutdown!");  
+	}  
+}  
+
+public class Computer {  
+	private CPU cpu;  
+	private Memory memory;  
+	private Disk disk;  
+
+	public Computer(){  
+		cpu = new CPU();  
+		memory = new Memory();  
+		disk = new Disk();  
+	}  
+
+	public void startup(){  
+		System.out.println("start the computer!");  
+		cpu.startup();  
+		memory.startup();  
+		disk.startup();  
+		System.out.println("start computer finished!");  
+	}  
+
+	public void shutdown(){  
+		System.out.println("begin to close the computer!");  
+		cpu.shutdown();  
+		memory.shutdown();  
+		disk.shutdown();  
+		System.out.println("computer closed!");  
+	}  
+}  
+
+public class User {  
+	public static void main(String[] args) {  
+		Computer computer = new Computer();  
+		computer.startup();  
+		computer.shutdown();  
+	}  
+}
+通过Computer类，各类之间的关系被放在了Computer类里，这样就起到了解耦的作用，降低调用复杂度。否则调用者需要知道详细的调用方法和顺序等
+
+
+10.桥接模式
+桥接模式就是把事物和其具体实现分开，使他们可以各自独立的变化。桥接的用意是：将抽象化与实现化解耦，使得二者可以独立变化，像常用的JDBC桥DriverManager一样，JDBC进行连接数据库的时候，在各个数据库之间进行切换，基本不需要动太多的代码，甚至丝毫不用动，原因就是JDBC提供统一接口，每个数据库提供各自的实现，用一个叫做数据库驱动的程序来桥接就行了
+
+abstract class AbstractRoad{
+	AbstractCar aCar;
+	void run(){};
+}
+abstract class AbstractCar{
+	void run(){};
+}
+
+class Street extends AbstractRoad{
+	@Override
+	void run() {
+		// TODO Auto-generated method stub
+		super.run();
+		aCar.run();
+		System.out.println("在市区街道行驶");
+	}
+}
+class SpeedWay extends AbstractRoad{
+	@Override
+	void run() {
+		// TODO Auto-generated method stub
+		super.run();
+		aCar.run();
+		System.out.println("在高速公路行驶");
+	}
+}
+class Car extends AbstractCar{
+	@Override
+	void run() {
+		// TODO Auto-generated method stub
+		super.run();
+		System.out.print("小汽车");
+	}
+}
+class Bus extends AbstractCar{
+	@Override
+	void run() {
+		// TODO Auto-generated method stub
+		super.run();
+		System.out.print("公交车");
+	}
+}
+
+public static void main(String[] args){
+	
+	AbstractRoad speedWay = new SpeedWay();
+	speedWay.aCar = new Car();
+	speedWay.run();
+	
+	AbstractRoad street = new Street();
+	street.aCar = new Bus();
+	street.run();
+}
+这里AbstractRoad就是一个桥接类，它桥接了AbstractCar，因为它持有AbstractCar，而AbstractCar和AbstractRoad都可以各自有自己的子类
+桥接类持有目标对象的接口，这样就可以各自变化，桥接具体类的实例可以调用目标具体类的实例
+桥接实际是一种组合关系，适合各自需要独立变化的情况
+
