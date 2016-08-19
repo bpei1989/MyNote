@@ -549,3 +549,432 @@ public static void main(String[] args){
 桥接类持有目标对象的接口，这样就可以各自变化，桥接具体类的实例可以调用目标具体类的实例
 桥接实际是一种组合关系，适合各自需要独立变化的情况
 
+
+11.组合模式
+就是Tree里面TreeNode类似的结构，组合其实是把多个对象放到一起操作
+
+
+12.享元模式
+其实就是共享池，一般与工厂模式共用，享元模式采用一个共享来避免大量拥有相同内容对象的开销
+抽象享元(Flyweight)角色 ：给出一个抽象接口，以规定出所有具体享元角色需要实现的方法。
+具体享元(ConcreteFlyweight)角色：实现抽象享元角色所规定出的接口
+享元工厂(FlyweightFactory)角色 ：本角色负责创建和管理享元角色。一个客户端对象调用一个享元对象的时候，享元工厂角色会检查系统中是否已经有一个符合要求的享元对象。如果已经有了，享元工厂角色就应当提供这个已有的享元对象；如果系统中没有一个适当的享元对象的话，享元工厂角色就应当创建一个合适的享元对象。
+ 
+public abstract class Flyweight{  
+　public abstract void operation();  
+}  
+
+public class ConcreteFlyweight extends Flyweight{  
+　private String string;  
+　public ConcreteFlyweight(String str){  
+　　string = str;  
+　}  
+　public void operation()  
+　{  
+　　System.out.println("Concrete---Flyweight : " + string);  
+　}  
+}  
+
+public class FlyweightFactory{  
+　private Hashtable flyweights = new Hashtable();
+　public FlyweightFactory(){}  
+　public Flyweight getFlyWeight(Object obj){  
+　　Flyweight flyweight = (Flyweight) flyweights.get(obj);
+　　if(flyweight == null){
+　　　flyweight = new ConcreteFlyweight((String)obj);  
+　　　flyweights.put(obj, flyweight);
+　　}  
+　　return flyweight;
+　}  
+　public int getFlyweightSize(){  
+　　return flyweights.size();  
+　}  
+}  
+注，就是连接池模式，jdbc的连接池就是这样，有的话就直接返回，没有就新建，池子满了就等待
+
+C.关系模式
+13.策略模式
+策略模式定义了一系列算法，并将每个算法封装起来，使他们可以相互替换，且算法的变化不会影响到使用算法的客户。需要设计一个接口，为一系列实现类提供统一的方法，多个实现类实现该接口
+public interface ICalculator {  
+	public int calculate(String exp);  
+}  
+
+public class Plus extends AbstractCalculator implements ICalculator {  
+	@Override  
+	public int calculate(String exp) {  
+		int arrayInt[] = split(exp,"\\+");  
+		return arrayInt[0]+arrayInt[1];  
+	}  
+}  
+
+public class Minus extends AbstractCalculator implements ICalculator {  
+	@Override  
+	public int calculate(String exp) {  
+		int arrayInt[] = split(exp,"-");  
+		return arrayInt[0]-arrayInt[1];  
+	}  
+}  
+
+public class StrategyTest {  
+	public static void main(String[] args) {  
+		String exp = "2+8";  
+		ICalculator cal = new Plus();  
+		int result = cal.calculate(exp);  
+		System.out.println(result);  
+	}  
+}  
+
+注，策略模式的决定权在用户，系统本身提供不同算法的实现（策略），调用者系需要决定用哪个
+
+
+14.模板方法模式
+模板方法模式需要开发抽象类和具体子类的设计师之间的协作。抽象类给出一个轮廓和骨架，实现类给出这个方法的各个逻辑步骤，Servlet就是模板方法，do方法由HttpServlet提供，具体实现需要由实现类提供
+
+
+15.观察者模式
+观察者模式中有一个主题的对象和若干个观察者的对象，当“主题”的状态发生变化时，所有观察者都得到通知
+观察者模式的优点：
+具体主题和具体关擦或者是松耦合关系，由于主题接口仅仅依赖于观察者的接口，因此具体主题只是知道它的观察者是实现观察者接口的某个实例，但不需要知道具体是哪个类。观察者也是这样，如果增加新的实现主题接口的类，也不必修改创建具体观察者的代码
+//抽象观察者角色
+public interface Watcher
+{
+    public void update(String str);
+}
+
+//抽象主题角色，watched：被观察
+public interface Watched
+{
+    public void addWatcher(Watcher watcher);
+
+    public void removeWatcher(Watcher watcher);
+
+    public void notifyWatchers(String str);
+
+}
+
+public class ConcreteWatcher implements Watcher
+{
+
+    @Override
+    public void update(String str)
+    {
+        System.out.println(str);
+    }
+
+}
+
+public class ConcreteWatched implements Watched
+{
+    // 存放观察者
+    private List<Watcher> list = new ArrayList<Watcher>();
+
+    @Override
+    public void addWatcher(Watcher watcher)
+    {
+        list.add(watcher);
+    }
+
+    @Override
+    public void removeWatcher(Watcher watcher)
+    {
+        list.remove(watcher);
+    }
+
+    @Override
+    public void notifyWatchers(String str)
+    {
+        /* 实际调用各个观察者的回调函数
+           很重要，用一个for循环遍历观察者
+        */
+        for (Watcher watcher : list)
+        {
+            watcher.update(str);
+        }
+    }
+
+}
+
+public class Test
+{
+    public static void main(String[] args)
+    {
+        Watched girl = new ConcreteWatched();
+        
+        Watcher watcher1 = new ConcreteWatcher();
+        Watcher watcher2 = new ConcreteWatcher();
+        Watcher watcher3 = new ConcreteWatcher();
+        
+        girl.addWatcher(watcher1);
+        girl.addWatcher(watcher2);
+        girl.addWatcher(watcher3);
+        
+        girl.notifyWatchers("开心");
+    }
+}
+
+
+16.迭代器模式
+基本思路就是用一个迭代器去迭代一个集合，而不是调用者直接操作。迭代器角色的加入，就可以很好的避免容器内部细节的暴露，而且也使得设计符合单一职责原则
+
+interface Iterator {
+
+    public Object next();
+
+    public boolean hasNext();
+
+}
+
+class ConcreteIterator implements Iterator {
+    private List<Object> list;
+    private int cursor = 0;// 当前游标位置
+
+    public ConcreteIterator(List<Object> list) {
+        this.list = list;
+
+    }
+
+    public boolean hasNext() {
+        // TODO Auto-generated method stub
+        return !(cursor == list.size());
+    }
+
+    public Object next() {
+        // TODO Auto-generated method stub
+        Object obj = null;
+        if (hasNext()) {
+            obj = list.get(cursor++);
+        }
+        return obj;
+    }
+}
+
+// 模拟集合接口 增删 差(遍历)
+interface Aggregate {
+
+    public void add(Object obj);
+
+    public void remove(Object obj);
+
+    //持有Iterator引用，这个很重要
+    public Iterator iterator();
+
+}
+
+class ConcreteAggregate implements Aggregate {
+    private List<Object> list;
+
+    public ConcreteAggregate(List<Object> list) {
+        this.list = list;
+
+    }
+
+    public void add(Object obj) {
+        list.add(obj);
+
+    }
+
+    public Iterator iterator() {
+        // TODO Auto-generated method stub
+        return new ConcreteIterator(list);
+    }
+
+    public void remove(Object obj) {
+        list.remove(obj);
+
+    }
+
+}
+
+public static void main(String[] args) {
+        List<Object> list = new ArrayList<Object>();
+        list.add("a");
+        list.add("b");
+        list.add("c");
+        Aggregate aggregate = new ConcreteAggregate(list);
+        Iterator iterator = aggregate.iterator();
+
+        while (iterator.hasNext()) {
+            String o = (String) iterator.next();
+            System.out.println(o);
+        }
+    }
+}
+
+
+17.责任链模式
+有多个对象，每个对象持有对下一个对象的引用，这样就会形成一条链，请求在这条链上传递，直到某一对象决定处理该请求。但是发出者并不清楚到底最终那个对象会处理该请求，所以，责任链模式可以实现，在隐瞒客户端的情况下，对系统进行动态的调整。
+情景：有多个的对象可以处理一个请求，哪个对象处理该请求运行时刻自动确定
+
+可以使用责任链模式来实现上述功能：当某人提出聚餐费用申请的请求后，该请求会在 项目经理—〉部门经理—〉总经理 这样一条领导处理链上进行传递，发出请求的人并不知道谁会来处理他的请求，每个领导会根据自己的职责范围，来判断是处理请求还是把请求交给更高级别的领导，只要有领导处理了，传递就结束了
+
+public abstract class Handler {
+
+    //持有下一个处理请求的对象
+    protected Handler successor = null;
+
+    public Handler getSuccessor() {
+        return successor;
+    }
+
+    //设置下一个处理请求的对象
+    public void setSuccessor(Handler successor) {
+        this.successor = successor;
+    }
+
+    //处理聚餐费用的申请
+    public abstract String handleFeeRequest(double fee);
+}
+
+public class ProjectManager extends Handler {
+
+    @Override
+    public String handleFeeRequest(double fee) {
+        
+        String str = "";
+        //项目经理权限比较小，只能在500以内
+        if(fee < 500)
+        {
+                str = "成功：项目经理同意聚餐费用，金额为" + fee + "元";    
+
+        }
+        else
+        {
+            //超过500，继续传递给级别更高的人处理
+            if(getSuccessor() != null)
+            {
+                return getSuccessor().handleFeeRequest(fee);
+            }
+        }
+        return str;
+}
+
+public class DeptManager extends Handler {
+
+    @Override
+    public String handleFeeRequest(double fee) {
+        
+        String str = "";
+        //部门经理的权限只能在1000以内
+        if(fee < 1000)
+        {
+
+            str = "成功：部门经理同意聚餐费用，金额为" + fee + "元";    
+
+        }
+        else
+        {
+            //超过1000，继续传递给级别更高的人处理
+            if(getSuccessor() != null)
+            {
+                return getSuccessor().handleFeeRequest(fee);
+            }
+        }
+        return str;
+    }
+}
+
+public class GeneralManager extends Handler {
+
+    @Override
+    public String handleFeeRequest(double fee) {
+        
+        String str = "";
+        //总经理的权限很大，只要请求到了这里，他都可以处理
+        if(fee >= 1000)
+        {
+            str = "成功：总经理同意【" + user + "】的聚餐费用，金额为" + fee + "元";    
+        }
+        else
+        {
+            //如果还有后继的处理对象，继续传递
+            if(getSuccessor() != null)
+            {
+                return getSuccessor().handleFeeRequest(fee);
+            }
+        }
+        return str;
+    }
+}
+
+public class Client {
+    public static void main(String[] args) {
+        //先要组装责任链
+        Handler h1 = new GeneralManager();
+        Handler h2 = new DeptManager();
+        Handler h3 = new ProjectManager();
+        h3.setSuccessor(h2);
+        h2.setSuccessor(h1);
+        
+        //开始测试
+        String test1 = h3.handleFeeRequest(300);
+        System.out.println("test1 = " + test1);
+
+        String test4 = h3.handleFeeRequest(700);
+        System.out.println("test2 = " + test2);
+        
+        String test6 = h3.handleFeeRequest(1500);
+        System.out.println("test3 = " + test3);
+    }
+}
+注，其实还可以这样写，不用设置后继者，更清楚
+List<Handler> hList = new LinkedList
+for(Handler h:hlist) {
+	if(!h.handleFeeRequest(number).equals("")) 
+		break;
+}
+注，核心是有一个Filter接口，多个实现类，通过设置后继者或列表遍历调用具体实现类
+
+
+18.命令模式
+司令员下令让士兵去干件事情，从整个事情的角度来考虑，司令员的作用是，发出口令，口令经过传递，传到了士兵耳朵里，士兵去执行。这个过程好在，三者相互解耦，任何一方都不用去依赖其他人，只需要做好自己的事儿就行。
+Invoker是调用者（司令员），Receiver是被调用者（士兵），MyCommand是命令
+public interface Command {  
+	public void exe();  
+}  
+
+public class MyCommand implements Command {  
+	private Receiver receiver;  //持有接收者
+
+	public MyCommand(Receiver receiver) {  
+		this.receiver = receiver;  
+	}  
+
+	@Override  
+	public void exe() {  
+		receiver.action();//执行命令
+	}  
+}  
+
+public class Receiver {  
+	public void action(){  
+		System.out.println("command received!");  
+	}  
+}  
+
+public class Invoker {  
+   
+	private Command command;  //持有command
+
+	public Invoker(Command command) {  
+		this.command = command;  
+	}  
+
+	public void action(){  
+		command.exe();  
+	}  
+}  
+
+public class Test {  
+
+	public static void main(String[] args) {  
+		Receiver receiver = new Receiver();  
+		Command cmd = new MyCommand(receiver);  
+		Invoker invoker = new Invoker(cmd);  
+		invoker.action();  
+	}  
+}  
+
+命令模式的目的就是达到命令的发出者和执行者之间解耦，实现请求和执行分开。
+
+
+
