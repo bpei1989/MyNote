@@ -977,4 +977,428 @@ public class Test {
 命令模式的目的就是达到命令的发出者和执行者之间解耦，实现请求和执行分开。
 
 
+19.备忘录模式
+发起人（Originator）角色：创建一个含有当前的内部状态的备忘录对象；使用备忘录对象存储其内部状态。
+备忘录（Memento）角色：备忘录对象将发起人对象传入的状态存储起来。
+负责人（Caretaker）角色：负责保存备忘录对象；不检查备忘录对象的内容。
+
+public class Originator {
+
+    private String state;
+    /**
+     * 工厂方法，返回一个新的备忘录对象
+     */
+    public Memento createMemento(){
+        return new Memento(state);
+    }
+    /**
+     * 将发起人恢复到备忘录对象所记载的状态
+     */
+    public void restoreMemento(Memento memento){
+        this.state = memento.getState();
+    }
+    
+    public String getState() {
+        return state;
+    }
+    
+    public void setState(String state) {
+        this.state = state;
+        System.out.println("当前状态：" + this.state);
+    }
+    
+}
+
+public class Memento {
+    
+    private String state;
+    
+    public Memento(String state){
+        this.state = state;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+    
+}
+
+public class Caretaker {
+
+    private Memento memento;
+    /**
+     * 备忘录的取值方法
+     */
+    public Memento retrieveMemento(){
+        return this.memento;
+    }
+    /**
+     * 备忘录的赋值方法
+     */
+    public void saveMemento(Memento memento){
+        this.memento = memento;
+    }
+}
+
+public class Client {
+
+    public static void main(String[] args) {
+        
+        Originator o = new Originator();
+        Caretaker c = new Caretaker();
+        //改变负责人对象的状态
+        o.setState("On");
+        //创建备忘录对象，并将发起人对象的状态储存起来
+        c.saveMemento(o.createMemento());
+        //修改发起人的状态
+        o.setState("Off");
+        //恢复发起人对象的状态
+        o.restoreMemento(c.retrieveMemento());
+        
+        System.out.println(o.getState());
+    }
+
+}
+注，注意发起者并不持有备忘录的引用，而是负责人持有备忘录对象
+
+
+20.状态模式
+是状态模式把所研究的对象的行为包装在不同的状态对象里，状态模式的意图让一个对象在其内部状态改变的时候，其行为也随之改变。
+
+//状态接口
+public interface VoteState {
+    /**
+     * 处理状态对应的行为
+     * @param user    投票人
+     * @param voteItem    投票项
+     * @param voteManager    投票上下文，用来在实现状态对应的功能处理的时候，
+     *                         可以回调上下文的数据
+     */
+    public void vote(String user,String voteItem,VoteManager voteManager);
+}
+
+//具体状态类，正常投票
+public class NormalVoteState implements VoteState {
+
+    @Override
+    public void vote(String user, String voteItem, VoteManager voteManager) {
+        //正常投票，记录到投票记录中
+        voteManager.getMapVote().put(user, voteItem);
+        System.out.println("恭喜投票成功");
+    }
+
+}
+
+//具体状态类——重复投票
+public class RepeatVoteState implements VoteState {
+
+    @Override
+    public void vote(String user, String voteItem, VoteManager voteManager) {
+        //重复投票，暂时不做处理
+        System.out.println("请不要重复投票");
+    }
+
+}
+
+//具体状态类—恶意刷票
+public class SpiteVoteState implements VoteState {
+
+    @Override
+    public void vote(String user, String voteItem, VoteManager voteManager) {
+        // 恶意投票，取消用户的投票资格，并取消投票记录
+        String str = voteManager.getMapVote().get(user);
+        if(str != null){
+            voteManager.getMapVote().remove(user);
+        }
+        System.out.println("你有恶意刷屏行为，取消投票资格");
+    }
+
+}
+
+
+public class VoteManager {
+    //持有状体处理对象
+    private VoteState state = null;
+    //记录用户投票的结果，Map<String,String>对应Map<用户名称，投票的选项>
+    private Map<String,String> mapVote = new HashMap<String,String>();
+    //记录用户投票次数，Map<String,Integer>对应Map<用户名称，投票的次数>
+    private Map<String,Integer> mapVoteCount = new HashMap<String,Integer>();
+    /**
+     * 获取用户投票结果的Map
+     */
+    public Map<String, String> getMapVote() {
+        return mapVote;
+    }
+    /**
+     * 投票
+     * @param user    投票人
+     * @param voteItem    投票的选项
+     */
+    public void vote(String user,String voteItem){
+        //1.为该用户增加投票次数
+        //从记录中取出该用户已有的投票次数
+        Integer oldVoteCount = mapVoteCount.get(user);
+        if(oldVoteCount == null){
+            oldVoteCount = 0;
+        }
+        oldVoteCount += 1;
+        mapVoteCount.put(user, oldVoteCount);
+        //2.判断该用户的投票类型，就相当于判断对应的状态
+        //到底是正常投票、重复投票、恶意投票还是上黑名单的状态
+        if(oldVoteCount == 1){
+            state = new NormalVoteState();
+        }
+        else if(oldVoteCount > 1 && oldVoteCount < 5){
+            state = new RepeatVoteState();
+        }
+        else if(oldVoteCount >= 5){
+            state = new BlackVoteState();
+        }
+        //然后转调状态对象来进行相应的操作
+        state.vote(user, voteItem, this);
+    }
+}
+
+public class Client {
+
+    public static void main(String[] args) {
+        
+        VoteManager vm = new VoteManager();
+        for(int i=0;i<=5;i++){
+            vm.vote("u1","A");
+        }
+    }
+
+}
+注，上面这个例子中，有几个关键点，接口，具体类，状态管理类，状态管理类对不同的状态返回不同的类，而这些类都有一个共同的接口，看起来就是根据不同的状态执行不同的操作，解耦了状态和行为的映射，可以任意插入新的具体实现类来实现扩展，和责任链有些类似，可以随意添加，防止了大量的if else中处理逻辑的状态
+
+
+21.访问者模式
+访问者模式是一种分离对象数据结构与行为的方法，通过这种分离，可以为一个已存在的类（即被访问者）增加新的操作（即访问者）而无须为它们进行修改。
+interface Service {
+
+    public void accept(Visitor visitor);
+}
+
+class Visitor {
+
+    public void process(Service service) {
+        // 基本业务
+        System.out.println("基本业务");
+    }
+
+    public void process(Saving service) {
+        // 存款
+        System.out.println("存款");
+    }
+
+    public void process(Draw service) {
+        // 提款
+        System.out.println("提款");
+    }
+
+    public void process(Fund service) {
+        System.out.println("基金");
+        // 基金
+    }
+
+}
+
+class Saving implements Service {
+
+    public void accept(Visitor visitor) {
+        visitor.process(this);
+
+    }
+}
+
+class Draw implements Service {
+
+    public void accept(Visitor visitor) {
+        visitor.process(this);
+
+    }
+}
+
+class Fund implements Service {
+
+    public void accept(Visitor visitor) {
+        visitor.process(this);
+
+    }
+}
+
+// 正常逻辑实现
+
+        Service service1 = new Saving();
+        Service service2 = new Fund();
+        Service service3 = new Draw();
+        List<Service> ls = new ArrayList<Service>();
+        ls.add(service1);
+        ls.add(service2);
+        ls.add(service3);
+        for (Service service : ls) {
+            if (service instanceof Saving) {
+                System.out.println("存款");
+            } else if (service instanceof Fund) {
+                System.out.println("基金");
+            } else if (service instanceof Draw) {
+                System.out.println("提款");
+            }
+        }
+        //上述的问题是随着业务量增大 代码维护量会非常的大 需要不断的去判断 
+        
+        //采用访问者模式解决
+        Service saving = new Saving();
+        Service fund = new Fund();
+        Service draw = new Draw();
+        Visitor visitor = new Visitor();
+        saving.accept(visitor);
+        fund.accept(visitor);
+        draw.accept(visitor);
+        //上述中accept中实际上有观察者的影子 实际上 访问者我们也可以理解成一个对业务熟悉的观察者
+        //他不断观察者是否有新的业务需求 有的话 进行相应的业务处理
+
+注，visitor实际就是一个处理类，把各个处理方法放到visitor内，处理的是service的具体实现类，这样，当需要扩展时，直接在visitor中添加就行，降低调用者的复杂度，各种判断处理都放在访问者类内。调用时，具体实现类accept访问者对象，把this传递给visitor
+访问者模式使你可以在不改变类层次结构的前提下，为该结构增加新的行为。该模式的机制包括为访问者定义一个接口，为层次关系中的所有访问者增加一个accept()方法。accept()方法使用双重委派技术，将其调用委派给访问者。类层次结构中的对象可以根据其类型调用核实的visit()方法。
+
+
+22.中介者模式
+它主要包含如下几个角色：
+
+Mediator: 抽象中介者。定义了同事对象到中介者对象之间的接口。
+
+ConcreteMediator: 具体中介者。实现抽象中介者的方法，它需要知道所有的具体同事类，同时需要从具体的同事类那里接收信息，并且向具体的同事类发送信息。
+
+Colleague: 抽象同事类。
+
+ConcreteColleague: 具体同事类。每个具体同事类都只需要知道自己的行为即可，但是他们都需要认识中介者。
+
+通过中介者对象对关系的封装，使得具体的同事类不再需要显示的引用其他对象，它只需要通过中介者就可以完成与其他同事类之间的通信。
+
+public abstract class Mediator {
+    //申明一个联络方法
+    public abstract void constact(String message,Person person);
+}
+
+public abstract class Person {
+    protected String name;
+    protected Mediator mediator;
+
+    Person(String name,Mediator mediator){
+        this.name = name;
+        this.mediator = mediator;
+    }
+
+}
+
+public class HouseOwner extends Person{
+
+    HouseOwner(String name, Mediator mediator) {
+        super(name, mediator);
+    }
+
+    /**
+     * @desc 与中介者联系
+     * @param message
+     * @return void
+     */
+    public void constact(String message){
+        mediator.constact(message, this);
+    }
+
+    /**
+     * @desc 获取信息
+     * @param message
+     * @return void
+     */
+    public void getMessage(String message){
+        System.out.println("房主:" + name +",获得信息：" + message);
+    }
+}
+
+public class Tenant extends Person{
+
+    Tenant(String name, Mediator mediator) {
+        super(name, mediator);
+    }
+
+    /**
+     * @desc 与中介者联系
+     * @param message
+     * @return void
+     */
+    public void constact(String message){
+        mediator.constact(message, this);
+    }
+
+    /**
+     * @desc 获取信息
+     * @param message
+     * @return void
+     */
+    public void getMessage(String message){
+        System.out.println("租房者:" + name +",获得信息：" + message);
+    }
+}
+
+public class MediatorStructure extends Mediator{
+    //首先中介结构必须知道所有房主和租房者的信息
+    private HouseOwner houseOwner;
+    private Tenant tenant;
+
+    public HouseOwner getHouseOwner() {
+        return houseOwner;
+    }
+
+    public void setHouseOwner(HouseOwner houseOwner) {
+        this.houseOwner = houseOwner;
+    }
+
+    public Tenant getTenant() {
+        return tenant;
+    }
+
+    public void setTenant(Tenant tenant) {
+        this.tenant = tenant;
+    }
+
+    public void constact(String message, Person person) {
+        if(person == houseOwner){          //如果是房主，则租房者获得信息
+            tenant.getMessage(message);
+        }
+        else{       //否则则是房主获得信息
+            houseOwner.getMessage(message);
+        }
+    }
+}
+
+public class Client {
+    public static void main(String[] args) {
+        //一个房主、一个租房者、一个中介机构
+        MediatorStructure mediator = new MediatorStructure();
+
+        //房主和租房者只需要知道中介机构即可
+        HouseOwner houseOwner = new HouseOwner("张三", mediator);
+        Tenant tenant = new Tenant("李四", mediator);
+
+        //中介结构要知道房主和租房者
+        mediator.setHouseOwner(houseOwner);
+        mediator.setTenant(tenant);
+
+        tenant.constact("听说你那里有三室的房主出租.....");
+        houseOwner.constact("是的!请问你需要租吗?");
+    }
+}
+
+中介者模式的核心是中介者持有两个具体实现类的对象，两个实现类中都持有中介者的对象，这样，实现类只需要知道中介者的存在即可，它的请求都通过中介者来处理
+有点类似Spring的依赖注入
+
+
+23.解释器模式
+给定一个语言之后，解释器模式可以定义出其文法的一种表示，并同时提供一个解释器，通过调用解释器获得语义。用于编写编译器，平时感觉用到的可能性不大
 
