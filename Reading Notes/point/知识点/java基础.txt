@@ -1,0 +1,355 @@
+1.什么是Java虚拟机
+ Java虚拟机是一个可以执行Java字节码的虚拟机进程。Java源文件被编译成能被Java虚拟机执行的字节码文件。
+
+2.JDK和JRE的区别是什么？
+Java运行时环境(JRE),包括 Java虚拟机等执行Java必须的环境。Java开发工具包(JDK)，包含了JRE，编译器和其他的工具(比如，Java调试器)，可以让开发者开发、编译、执行Java应用程序
+
+3.”static”关键字是什么意思？Java中是否可以覆盖(override)一个private或者是static的方法？
+“static”关键字表明一个成员变量或者是成员方法可以在没有所属的类的实例变量的情况下被访问。
+Java中static方法不能被覆盖，因为方法覆盖是基于运行时动态绑定的，而static方法是编译时静态绑定的。static方法跟类的任何实例都不相关。
+
+4.是否可以在static环境中访问非static变量？
+static变量在Java中是属于类的，它在所有的实例中的值是一样的。当类被Java虚拟机载入的时候，会对static变量进行初始化。如果你的代码尝试不用实例来访问非static的变量，编译器会报错，因为这些变量还没有被创建出来，还没有跟任何实例关联上。
+
+5.Java支持的数据类型有哪些？什么是自动拆装箱？
+Java语言支持的8中基本数据类型是：
+byte，short，int，long，float，double，boolean，char
+自动装箱是Java编译器在基本数据类型和对应的对象包装类型之间做的一个转化。比如：把int转化成Integer，double转化成double，等等。反之就是自动拆箱。
+//装箱 
+Integer num = 10; 
+//拆箱 
+int num1 = num
+
+6.Java中的方法覆盖(Overriding)和方法重载(Overloading)是什么意思？
+Java中的方法重载发生在同一个类里面两个或者是多个方法的方法名相同但是参数不同的情况。与此相对，方法覆盖是说子类重新定义了父类的方法。方法覆盖必须有相同的方法名，参数列表和返回类型
+
+7.Java中，什么是构造函数？什么是构造函数重载？什么是复制构造函数？
+当新对象被创建的时候，构造函数会被调用。每一个类都有构造函数。在程序员没有给类提供构造函数的情况下，Java编译器会为这个类创建一个默认的构造函数。
+Java可以为一个类创建多个构造函数。每一个构造函数必须有它自己唯一的参数列表。
+
+8.Java支持多继承么？
+不支持，Java不支持多继承。每个类都只能继承一个类，但是可以实现多个接口。
+
+9.接口和抽象类的区别是什么？
+抽象方法必须用abstract关键字进行修饰。如果一个类含有抽象方法，则称这个类为抽象类，因为抽象类中含有无具体实现的方法，所以不能用抽象类创建对象。抽象类是为了继承而存在的
+接口中可以含有 变量和方法。但是要注意，接口中的变量会被隐式地指定为public static final变量（并且只能是public static final变量，用private修饰会报编译错误），而方法会被隐式地指定为public abstract方法且只能是public abstract方法（用其他关键字，比如private、protected、static、 final等修饰会报编译错误），并且接口中所有的方法不能有具体的实现，也就是说，接口中的方法必须都是抽象方法。
+总结
+	1）抽象类可以提供成员方法的实现细节，而接口中只能存在public abstract 方法；
+	2）抽象类中的成员变量可以是各种类型的，而接口中的成员变量只能是public static final类型的；
+	3）接口中不能含有静态代码块以及静态方法，而抽象类可以有静态代码块和静态方法；
+	4）一个类只能继承一个抽象类，而一个类却可以实现多个接口。
+	5）抽象类是为了继承而存在的，接口是为规定类型而存在的
+
+10.什么是值传递和引用传递？
+对象被值传递，意味着传递了对象的一个副本。因此，就算是改变了对象副本，也不会影响源对象的值。
+对象被引用传递，意味着传递的并不是实际的对象，而是对象的引用。因此，外部对引用对象所做的改变会反映到所有的对象上。
+
+13.概括的解释下线程的几种可用状态。
+线程在执行过程中，可以处于下面几种状态：
+•	就绪(Runnable):线程准备运行，不一定立马就能开始执行。
+•	运行中(Running)：进程正在执行线程的代码。
+•	等待中(Waiting):线程处于阻塞的状态，等待外部的处理结束。
+•	睡眠中(Sleeping)：线程被强制睡眠。
+•	I/O阻塞(Blocked on I/O)：等待I/O操作完成。
+•	同步阻塞(Blocked on Synchronization)：等待获取锁。
+•	死亡(Dead)：线程完成了执行。
+
+14.同步方法和同步代码块的区别是什么？
+普通同步方法，锁是当前对象；静态同步方法，锁是当前类的Class对象；同步方法快，锁是synchronized括号里配置的对象
+实现原理：JVM基于进入和退出Monitor对象来实现方法同步和代码块同步，其中代码块同步用monitorenter和monitorexit指令实现，而方法同步的实现方式JVM里没有细说，不过也可以用monitorenter和monitorexit指令实现
+编译后，monitorenter指令插入到同步代码块的开始，monitorexit指令插入到结束和异常处，JVM保证两个成对出现，任何一个对象都有一个monitor与之关联，线程执行monitorenter指令尝试获取对象关联的Monitor的所有权，即尝试获取对象锁
+
+15.在监视器(Monitor)内部，是如何做线程同步的？程序应该做哪种级别的同步？
+监视器和锁是一块使用的。监视器监视一块同步代码块，确保一次只有一个线程执行同步代码块。每一个监视器都和一个对象引用相关联。线程在获取锁之前不允许执行同步代码。
+
+16.什么是死锁(deadlock)？
+两个进程都在等待对方执行完毕才能继续往下执行的时候就发生了死锁。结果就是两个进程都陷入了无限的等待中。
+
+17.如何确保N个线程可以访问N个资源同时又不导致死锁？
+使用多线程的时候，一种非常简单的避免死锁的方式就是：指定获取锁的顺序，并强制线程按照指定的顺序获取锁。因此，如果所有的线程都是以同样的顺序加锁和释放锁，就不会出现死锁了。
+
+18.Java集合类框架的基本接口有哪些?
+•	Collection：代表一组对象，每一个对象都是它的子元素。
+•	Set：不包含重复元素的Collection。
+•	List：有顺序的collection，并且可以包含重复元素。
+•	Map：可以把键(key)映射到值(value)的对象，键不能重复。
+
+19.为什么集合类没有实现Cloneable和Serializable接口？
+集合类接口指定了一组叫做元素的对象。集合类接口的每一种具体的实现类都可以选择以它自己的方式对元素进行保存和排序。
+
+20.什么是迭代器(Iterator)？
+Iterator接口提供了很多对集合元素进行迭代的方法。
+
+23.Java中的HashMap的工作原理是什么？
+Java中的HashMap是以键值对(key-value)的形式存储元素的。HashMap需要一个hash函数，它使用hashCode()和equals()方法来向集合/从集合添加和检索元素。当调用put()方法的时候，HashMap会计算key的hash值，然后把键值对存储在集合中合适的索引上。如果key已经存在了，value会被更新成新值。HashMap的一些重要的特性是它的容量(capacity)，负载因子(load factor)和扩容极限(threshold resizing)。
+
+24.hashCode()和equals()方法的重要性体现在什么地方？
+Java中的HashMap使用hashCode()和equals()方法来确定键值对的索引，当根据键获取值的时候也会用到这两个方法。如果没有正确的实现这两个方法，两个不同的键可能会有相同的hash值，因此，可能会被集合认为是相等的。而且，这两个方法也用来发现重复元素。所以这两个方法的实现对HashMap的精确性和正确性是至关重要的。
+
+25.HashMap和Hashtable有什么区别？
+•	HashMap和Hashtable都实现了Map接口，因此很多特性非常相似。但是，他们有以下不同点：
+•	HashMap允许键和值是null，而Hashtable不允许键或者值是null。
+•	Hashtable是同步的，而HashMap不是。因此，HashMap更适合于单线程环境，而Hashtable适合于多线程环境。
+•	HashMap提供了可供应用迭代的键的集合，因此，HashMap是快速失败的。另一方面，Hashtable提供了对键的列举(Enumeration)。
+o	一般认为Hashtable是一个遗留的类。如果需要同步一般用ConCurrentHashMap
+
+26.数组(Array)和列表(ArrayList)有什么区别？什么时候应该使用Array而不是ArrayList？
+•	Array可以包含基本类型和对象类型，ArrayList只能包含对象类型。
+
+27.ArrayList和LinkedList有什么区别？
+ArrayList和LinkedList都实现了List接口，他们有以下的不同点：基本就是数组和链表的区别
+
+
+28.Comparator 和 Comparable 的区别
+Comparable
+Comparable 定义在 Person类的内部:
+public class Persion implements Comparable {..比较Person的大小..},
+ 因为已经实现了比较器,那么我们的Person现在是一个可以比较大小的对象了,它的比较功能和String完全一样,可以随时随地的拿来
+比较大小,因为Person现在自身就是有大小之分的。Collections.sort(personList)可以得到正确的结果。
+
+Comparator
+Comparator 是定义在Person的外部的, 此时我们的Person类的结构不需要有任何变化,如
+public class Person{ String name; int age },
+然后我们另外定义一个比较器:
+public PersonComparator implements Comparator() {..比较Person的大小..},
+在PersonComparator里面实现了怎么比较两个Person的大小. 所以,用这种方法,当我们要对一个 personList进行排序的时候, 
+我们除了了要传递personList过去, 还需要把PersonComparator传递过去,因为怎么比较Person的大小是在PersonComparator
+里面实现的, 如:
+Collections.sort( personList , new PersonComparator() ).
+
+Comparator 和 Comparable 的实例
+Comparable:
+实现Comparable接口要覆盖compareTo方法, 在compareTo方法里面实现比较：
+public class Person implements Comparable {
+     String name;
+     int age
+     public int compareTo(Person another) {
+          int i = 0;
+          i = name.compareTo(another.name); // 使用字符串的比较
+          if(i == 0) { // 如果名字一样,比较年龄, 返回比较年龄结果
+               return age - another.age;
+          } else {
+               return i; // 名字不一样, 返回比较名字的结果.
+          }
+     }
+}
+   这时我们可以直接用 Collections.sort( personList ) 对其排序了.
+
+Comparator:
+实现Comparator需要覆盖 compare 方法：
+public class Person{
+     String name;
+     int age
+}
+class PersonComparator implements Comparator { 
+     public int compare(Person one, Person another) {
+          int i = 0;
+          i = one.name.compareTo(another.name); // 使用字符串的比较
+          if(i == 0) { // 如果名字一样,比较年龄,返回比较年龄结果
+               return one.age - another.age;
+          } else {
+               return i; // 名字不一样, 返回比较名字的结果.
+          }
+     }
+}
+   Collections.sort( personList , new PersonComparator()) 可以对其排序
+
+
+31.如何权衡是使用无序的数组还是有序的数组？
+有序数组最大的好处在于查找的时间复杂度是O(log n)，而无序数组是O(n)。有序数组的缺点是插入操作的时间复杂度是O(n)，因为值大的元素需要往后移动来给新元素腾位置。相反，无序数组的插入时间复杂度是常量O(1)。
+
+33.Enumeration接口和Iterator接口的区别有哪些？
+Enumeration速度是Iterator的2倍，同时占用更少的内存。但是，Iterator远远比Enumeration安全，因为其他线程不能够修改正在被iterator遍历的集合里面的对象。同时，Iterator允许调用者删除底层集合里面的元素，这对Enumeration来说是不可能的。
+
+34.HashSet和TreeSet有什么区别？
+HashSet是由一个hash表来实现的，因此，它的元素是无序的。add()，remove()，contains()方法的时间复杂度是O(1)。
+另一方面，TreeSet是由一个树形的结构来实现的，它里面的元素是有序的。因此，add()，remove()，contains()方法的时间复杂度是O(logn)。
+
+35.Java中垃圾回收有什么目的？什么时候进行垃圾回收？
+垃圾回收的目的是识别并且丢弃应用不再使用的对象来释放和重用资源。
+
+36.System.gc()和Runtime.gc()会做什么事情？
+这两个方法用来提示JVM要进行垃圾回收。但是，立即开始还是延迟进行垃圾回收是取决于JVM的。
+
+37.finalize()方法什么时候被调用？析构函数(finalization)的目的是什么？
+在释放对象占用的内存之前，垃圾收集器会调用对象的finalize()方法。一般建议在该方法中释放对象持有的资源。
+
+38.如果对象的引用被置为null，垃圾收集器是否会立即释放对象占用的内存？
+不会，在下一个垃圾回收周期中，这个对象将是可被回收的。
+
+39.Java堆的结构是什么样子的？什么是堆中的永久代(Perm Gen space)?
+JVM的堆是运行时数据区，所有类的实例和数组都是在堆上分配内存。它在JVM启动的时候被创建。对象所占的堆内存是由自动内存管理系统也就是垃圾收集器回收。
+堆内存是由存活和死亡的对象组成的。存活的对象是应用可以访问的，不会被垃圾回收。死亡的对象是应用不可访问尚且还没有被垃圾收集器回收掉的对象。一直到垃圾收集器把这些对象回收掉之前，他们会一直占据堆内存空间。
+永久代,主要存放类定义,字节码和常量等很少变动的信息。 
+
+41.在Java中，对象什么时候可以被垃圾回收？
+当对象对当前使用这个对象的应用程序变得不可触及的时候，这个对象就可以被回收了。
+
+42.JVM的永久代中会发生垃圾回收么？
+垃圾回收不会发生在永久代，如果永久代满了或者是超过了临界值，会触发完全垃圾回收(Full GC)。
+
+43.Java中的两种异常类型是什么？他们有什么区别？
+Java中有两种异常：受检查的(checked)异常和不受检查的(unchecked)异常。
+运行时异常（RuntimeException）也称作未检测的异常（unchecked exception），这表示这种异常不需要编译器来检测。RuntimeException是所有可以在运行时抛出的异常的父类。一个方法除要捕获异常外，如果它执行的时候可能会抛出RuntimeException的子类，那么它就不需要用throw语句来声明抛出的异常。 
+例如：NullPointerException，ArrayIndexOutOfBoundsException，等等 
+受检查异常（checked exception）都是编译器在编译时进行校验的，通过throws语句或者try{}cathch{} 语句块来处理检测异常。编译器会分析哪些异常会在执行一个方法或者构造函数的时候抛出。
+
+
+44.Java中Exception和Error有什么区别？
+Error类和Exception类都继承自Throwable类。
+Exception：
+1．可以是可被控制(checked) 或不可控制的(unchecked) 
+2．表示一个由程序员导致的错误 
+3．应该在应用程序级被处理
+ 
+Error：
+1．总是不可控制的(unchecked) 
+2．经常用来用于表示系统错误或低层资源的错误 
+3．如何可能的话，应该在系统级被捕捉
+
+45.throw和throws有什么区别？
+throw关键字用来在程序中明确的抛出异常，相反，throws语句用来表明方法不能处理的异常
+
+45.异常处理的时候，finally代码块的重要性是什么？
+无论是否抛出异常，finally代码块总是会被执行。就算是没有catch语句同时又抛出异常的情况下，finally代码块仍然会被执行。最后要说的是，finally代码块主要用来释放资源，比如：I/O缓冲区，数据库连接。
+
+46.异常处理完成以后，Exception对象会发生什么变化？
+Exception对象会在下一个垃圾回收过程中被回收掉。
+
+47.finally代码块和finalize()方法有什么区别？
+无论是否抛出异常，finally代码块都会执行，它主要是用来释放应用占用的资源。finalize()方法是Object类的一个protected方法，它是在对象被垃圾回收之前由Java虚拟机来调用的。
+
+72.什么是JDBC？
+JDBC是允许用户在不同数据库之间做选择的一个抽象层。JDBC允许开发者用JAVA写数据库应用程序，而不需要关心底层特定数据库的细节。
+
+73.解释下驱动(Driver)在JDBC中的角色。
+JDBC驱动提供了特定厂商对JDBC API接口类的实现，驱动必须要提供java.sql包下面这些类的实现：Connection, Statement, PreparedStatement,CallableStatement, ResultSet和Driver。
+
+74.Class.forName()方法有什么作用？
+这个方法用来载入跟数据库建立连接的驱动。
+Class.forName(xxx.xx.xx)返回的是一个类
+Class.forName(xxx.xx.xx)的作用是要求JVM查找并加载指定的类
+A a = (A)Class.forName(“pacage.A”).newInstance();
+这和你 A a = new A()； 是一样的效果。
+new 和Class.forName（）有什么区别？
+其实上面已经说到一些了，这里来做个总结：
+首先，newInstance( )是一个方法，而new是一个关键字；
+其次，Class下的newInstance()的使用有局限，因为它生成对象只能调用无参的构造函数，而使用 new关键字生成对象没有这个限制。
+
+75.PreparedStatement比Statement有什么优势？
+PreparedStatements是预编译的，因此，性能会更好。同时，不同的查询参数值，PreparedStatement可以重用。
+
+76.什么时候使用CallableStatement？用来准备CallableStatement的方法是什么？
+CallableStatement用来执行存储过程。存储过程是由数据库存储和提供的。存储过程可以接受输入参数，也可以有返回结果。非常鼓励使用存储过程，因为它提供了安全性和模块化。准备一个CallableStatement的方法是：
+CallableStatement cstmt = con.prepareCall( 
+"{call getTestData(?, ?)}"); 
+cstmt.registerOutParameter(1, java.sql.Types.TINYINT); 
+cstmt.registerOutParameter(2, java.sql.Types.DECIMAL, 3); 
+cstmt.executeQuery(); 
+byte x = cstmt.getByte(1); 
+java.math.BigDecimal n = cstmt.getBigDecimal(2, 3); 
+
+77.数据库连接池是什么意思？
+像打开关闭数据库连接这种和数据库的交互可能是很费时的，尤其是当客户端数量增加的时候，会消耗大量的资源，成本是非常高的。可以在应用服务器启动的时候建立很多个数据库连接并维护在一个池中。连接请求由池中的连接提供。在连接使用完毕以后，把连接归还到池中，以用于满足将来更多的请求。
+
+78.什么是RMI？
+Java远程方法调用(Java RMI)是Java API对远程过程调用(RPC)提供的面向对象的等价形式.RMI对调用者是位置透明的，因为调用者感觉方法是执行在本地运行的对象上的
+
+90.解释下Serialization和Deserialization。
+Java提供了一种叫做对象序列化的机制，他把对象表示成一连串的字节，里面包含了对象的数据，对象的类型信息，对象内部的数据的类型信息等等。因此，序列化可以看成是为了把对象存储在磁盘上或者是从磁盘上读出来并重建对象而把对象扁平化的一种方式。反序列化是把对象从扁平状态转化成活动对象的相反的步骤。
+
+91.什么是Servlet？
+Servlet是用来处理客户端请求并产生动态网页内容的Java类。Servlet主要是用来处理或者是存储HTML表单提交的数据，产生动态内容，在无状态的HTTP协议下管理状态信息。
+
+92.说一下Servlet的体系结构。
+所有的Servlet都必须要实现的核心的接口是javax.servlet.Servlet。每一个Servlet都必须要直接或者是间接实现这个接口，或者是继承javax.servlet.GenericServlet或者javax.servlet.http.HTTPServlet。最后，Servlet使用多线程可以并行的为多个请求服务。
+
+94.GenericServlet和HttpServlet有什么区别？
+GenericServlet是一个通用的协议无关的Servlet，它实现了Servlet和ServletConfig接口。继承自GenericServlet的Servlet应该要覆盖service()方法。最后，为了开发一个能用在网页上服务于使用HTTP协议请求的Servlet，你的Servlet必须要继承自HttpServlet。
+
+95.解释下Servlet的生命周期。
+对每一个客户端的请求，Servlet引擎载入Servlet，调用它的init()方法，完成Servlet的初始化。然后，Servlet对象通过为每一个请求单独调用service()方法来处理所有随后来自客户端的请求，最后，调用Servlet(译者注：这里应该是Servlet而不是server)的destroy()方法把Servlet删除掉。
+
+96.doGet()方法和doPost()方法有什么区别？
+doGet：GET方法会把名值对追加在请求的URL后面。因为URL对字符数目有限制，进而限制了用在客户端请求的参数值的数目。并且请求中的参数值是可见的，因此，敏感信息不能用这种方式传递。
+doPOST：POST方法通过把请求参数值放在请求体中来克服GET方法的限制，因此，可以发送的参数的数目是没有限制的。最后，通过POST请求传递的敏感信息对外部客户端是不可见的。
+
+97.什么是Web应用程序？
+一般来说，一个Web应用可以看成是一组安装在服务器URL名称空间的特定子集下面的Servlet的集合。
+
+99.什么是Servlet链(Servlet Chaining)？
+Servlet链是把一个Servlet的输出发送给另一个Servlet的方法。第二个Servlet的输出可以发送给第三个Servlet，依次类推。链条上最后一个Servlet负责把响应发送给客户端。
+
+100.如何知道是哪一个客户端的机器正在请求你的Servlet？
+ServletRequest类可以找出客户端机器的IP地址或者是主机名。getRemoteAddr()方法获取客户端主机的IP地址，getRemoteHost()可以获取主机名。看下这里的例子。
+
+101.HTTP响应的结构是怎么样的？
+HTTP响应由三个部分组成：
+状态码(Status Code)：描述了响应的状态。可以用来检查是否成功的完成了请求。请求失败的情况下，状态码可用来找出失败的原因。如果Servlet没有返回状态码，默认会返回成功的状态码HttpServletResponse.SC_OK。
+HTTP头部(HTTP Header)：它们包含了更多关于响应的信息。比如：头部可以指定认为响应过期的过期日期，或者是指定用来给用户安全的传输实体内容的编码格式。如何在Serlet中检索HTTP的头部看这里。
+主体(Body)：它包含了响应的内容。它可以包含HTML代码，图片，等等。主体是由传输在HTTP消息中紧跟在头部后面的数据字节组成的。
+
+102.什么是cookie？session和cookie有什么区别？
+当一个用户通过 HTTP 协议访问一个服务器的时候，这个服务器会将一些 Key/Value 键值对返回给客户端浏览器，并给这些数据加上一些限制条件，在条件符合时这个用户下次访问这个服务器的时候，数据又被完整地带回给服务器。
+这个作用就像您去超市购物时，第一次给您办张购物卡，这个购物卡里存放了一些您的个人信息，下次您再来这个连锁超市时，超市会识别您的购物卡，下次直接购物就好了。
+当我们用如下方式创建 Cookie 时：
+
+ String getCookie(Cookie[] cookies, String key) { 
+        if (cookies != null) { 
+            for (Cookie cookie : cookies) { 
+                if (cookie.getName().equals(key)) { 
+                    return cookie.getValue(); 
+                } 
+            } 
+        } 
+        return null; 
+    } 
+
+    @Override 
+    public void doGet(HttpServletRequest request, 
+                      HttpServletResponse response) 
+            throws IOException, ServletException { 
+        Cookie[] cookies = request.getCookies(); 
+        String userName = getCookie(cookies, "userName"); 
+        String userAge = getCookie(cookies, "userAge"); 
+        if (userName == null) { 
+            response.addCookie(new Cookie("userName", "junshan")); 
+        } 
+        if (userAge == null) { 
+            response.addCookie(new Cookie("userAge", "28")); 
+        } 
+        response.getHeaders("Set-Cookie"); 
+ }
+ 请求某个 URL 路径时，浏览器会根据这个 URL 路径将符合条件的 Cookie 放在 Request 请求头中传回给服务端，服务端通过 request.getCookies() 来取得所有 Cookie。
+ 
+ 每次客户端的访问都必须传回这些 Cookie，如果 Cookie 很多，这无形地增加了客户端与服务端的数据传输量，而 Session 的出现正是为了解决这个问题。
+ 同一个客户端每次和服务端交互时，不需要每次都传回所有的 Cookie 值，而是只要传回一个 ID，这个 ID 是客户端第一次访问服务器的时候生成的，而且每个客户端是唯一的。这样每个客户端就有了一个唯一的 ID，客户端只要传回这个 ID 就行了，这个 ID 通常是 NANE 为 JSESIONID 的一个 Cookie。
+ 有了 Session ID 服务端就可以创建 HttpSession 对象了，第一次触发通过 request.getSession() 方法。如果当前的 Session ID 还没有对应的 HttpSession 对象，那么就创建一个新的，并将这个对象加到 org.apache.catalina. Manager 的 sessions 容器中保存。
+ Manager 类将管理所有 Session 的生命周期，Session 过期将被回收，服务器关闭，Session 将被序列化到磁盘等。只要这个 HttpSession 对象存在，用户就可以根据 Session ID 来获取这个对象，也就达到了状态的保持。
+ 虽然 Cookie 和 Session 都可以跟踪客户端的访问记录，但是它们的工作方式显然是不同的，Cookie 通过把所有要保存的数据通过 HTTP 协议的头部从客户端传递到服务端，又从服务端再传回到客户端，所有的数据都存储在客户端的浏览器里，所以这些 Cookie 数据可以被访问到，就像我们前面通过 Firefox 的插件 HttpFox 可以看到所有的 Cookie 值。不仅可以查看 Cookie，甚至可以通过 Firecookie 插件添加、修改 Cookie，所以 Cookie 的安全性受到了很大的挑战。
+
+相比较而言 Session 的安全性要高很多，因为 Session 是将数据保存在服务端，只是通过 Cookie 传递一个 SessionID 而已，所以 Session 更适合存储用户隐私和重要的数据。
+Session 和 Cookie 各自有优点和缺点。在大型互联网系统中，单独使用 Cookie 和 Session 都是不可行的，原因很简单。因为如果使用 Cookie，可以很好地解决应用的分布式部署问题，大型互联网应用系统一个应用有上百台机器，而且有很多不同的应用系统协同工作，由于 Cookie 是将值存储在客户端的浏览器里，用户每次访问都会将最新的值带回给处理该请求的服务器，所以也就解决了同一个用户的请求可能不在同一台服务器处理而导致的 Cookie 不一致的问题。
+但有几个问题：客户端 Cookie 存储限制，超过后就会丢弃Cookie；不安全
+需要一个服务订阅服务器，在应用启动时可以从这个订阅服务器订阅这个应用需要的可写 Session 项和可写 Cookie 项，这些配置的 Session 和 Cookie 可以限制这个应用能够使用哪些 Session 和 Cookie，甚至可以控制 Session 和 Cookie 可读或者可写。这样可以精确地控制哪些应用可以操作哪些 Session 和 Cookie，可以有效控制 Session 的安全性和 Cookie 的数量。Session存在分布式缓存中
+
+104.什么是HTTP隧道？
+HTTP隧道是一种利用HTTP或者是HTTPS把多种网络协议封装起来进行通信的技术。因此，HTTP协议扮演了一个打通用于通信的网络协议的管道的包装器的角色。把其他协议的请求掩盖成HTTP的请求就是HTTP隧道。
+
+105.sendRedirect()和forward()方法有什么区别？
+sendRedirect()方法会创建一个新的请求，而forward()方法只是把请求转发到一个新的目标上。重定向(redirect)以后，之前请求作用域范围以内的对象就失效了，因为会产生一个新的请求，而转发(forwarding)以后，之前请求作用域范围以内的对象还是能访问的。一般认为sendRedirect()比forward()要慢。
+
+106.什么是URL编码和URL解码？
+URL编码是负责把URL里面的空格和其他的特殊字符替换成对应的十六进制表示，反之就是解码。
+
+为什么会有Base64编码呢？
+因为有些网络传送渠道并不支持所有的字节，例如传统的邮件只支持可见字符的传送，像ASCII码的控制字符就 不能通过邮件传送。这样用途就受到了很大的限制，比如图片二进制流的每个字节不可能全部是可见字符，所以就传送不了。最好的方法就是在不改变传统协议的情 况下，做一种扩展方案来支持二进制文件的传送。把不可打印的字符也能用可打印字符来表示，问题就解决了。Base64编码应运而生，Base64就是一种 基于64个可打印字符来表示二进制数据的表示方法。
+看一下Base64的索引表，字符选用了"A-Z、a-z、0-9、+、/" 64个可打印字符。
+这里需要弄明白的就是一个Base64字符是8个bit，但是有效部分只有右边的6个 bit，左边两个永远是0。
+
+ 
+ 
+
+
+
+
