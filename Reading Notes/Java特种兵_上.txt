@@ -1,0 +1,57 @@
+第一章
+1. == equals() hashCode()
+==匹配两个内存单元的内容是否一样
+对于基本类型，如byte，int，long，就是直接比较值是否相等
+如果是引用，则比较引用值，即两个对象的地址是否一样，即是不是引用同一对象
+
+equals()定义在Object类里，它调用==来匹配，如果没有重写过那么就是比较对象的地址
+equals方法之所以存在就是希望子类去重写，比如String类实现对比值是否一样
+
+hashCode方法也是在Object类里，它产生一个可标识对象的数字，在HashMap等集合中，如果对象为key则基于对象的hashCode实现写入和查找
+不能说hashCode是唯一的所以在hash后需要循环链表才能找到具体对象，该方法可以重写，如果始终返回一个值，则HashSet等会退化成链表
+
+hashCode是为快速定位而存在的，equals是为了自定义比较而存在的。hashCode和equals并不是强制绑定在一起的，如果不需要也可以不重写，取决具体情况
+注意，String只是重写了equals方法，==还是比较引用而不是内容
+
+
+2.编译时的优化
+编译代码时，String a = "a" + "b" + 1编译为String a="ab1"，类似int i = 3*4 + 120，编译时直接i=132，不会在运行时计算i
+不是所有内容都能优化，如果出现了变量，则编译时不能优化，StringBuilder未必比+快，因为如果是编译时就优化则+更快，如果有变量则StringBuilder更快
+
+编译优化一般发生于常量，对于不可预测的变量则不会优化，一切优化基于正确，如果可能带来不正确则不会优化
+		String a = "a";
+		String b = a + "b";
+		final String c = "a";
+		String d = c + "b";
+		String cm = "ab";
+		System.out.println(b == cm);//false
+		System.out.println（b.equals(cm)）;//true
+		System.out.println（d == cm);//true 编译优化，因为是final不会变
+
+
+3. intern方法
+调用intern方法，JVM会在常量池中用equals方法查找是否存在相等的String，如果存在，则直接返回常量池中该String对象地址，如果没找到，则会创建等值的字符串，再返回
+intern注入的常量存储在永久常量池中，只有在FULL GC的时候没有引用指向它就会被注销。intern的效率不高，因为需要查找所有的常量，而且需要有锁。
+
+
+4. StringBuilder和String PK
+如果String+的常量，则在编译期间就会优化，比StringBuilder效率高
+String 类型和 StringBuilder 类型的主要性能区别其实在于 String 是不可变的对象, 因此在每次对 String 类型进行改变的时候其实都等同于生成了一个新的 String 对象
+大量运行时拼接，StringBuilder效率高，因为大量的内存拷贝和GC使效率下降
+每次结果都会对 StringBuffer 对象本身进行操作，而不是生成新的对象，再改变对象引用，StringBuilder的垃圾就是拼接对象和扩容原来的空间，比String+要少
+StringBuilder基本思路就是如果分配一定长度的char[],如果append时不够用，则扩容，一般是原来数组长度的两倍，而且需要把之前的字符拷贝过来
+总：实际StringBuilder比+强在GC上，String + 在大量时会产生很多垃圾，GC调用频繁效率低。一般情况其实区分很小，只有在大字符串时有区别
+
+
+5.简单数据转换
+进制转换，byte[]转换。
+toBinaryString()进制转换
+int网络二进制大小端通过DataOutput/InputStream方法，ByteBuffer实现了各种数据类型的put，get内部通过byte转换进行
+
+
+6.BigDecimal
+金融的货币计算不能用float，必须用BigDecimal，主要是因为浮点不准，还有过大的也需要用BigDecimal
+用来对超过16位有效位的数进行精确计算
+
+
+
