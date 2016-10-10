@@ -1,0 +1,57 @@
+1.基本布局
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>例子</title>
+</head>
+<body>
+ 
+<h1>我的第一个标题</h1>
+ 
+<p>我的第一个段落。</p>
+ 
+</body>
+</html>
+
+DOCTYPE 声明了文档类型
+位于标签 <html> 与 </html> 描述了文档类型
+位于标签 <body> 与 </body> 为可视化网页内容
+位于标签 <h1> 与 </h1> 作为一个标题使用
+位于标签 <p> 与 </p> 作为一个段落显示
+注：head是显示在浏览器标签上的内容，不是页面上的
+
+
+
+2.基础
+标题
+HTML 标题（Heading）是通过<h1> - <h6> 标签来定义的.
+<h1>这是一个标题</h1>
+<h2>这是一个标题</h2>
+<h3>这是一个标题</h3>
+注：显示一个比一个小
+
+段落
+<p>这是一个段落。</p>
+<p>这是另外一个段落。</p>
+
+HTML 链接
+HTML 链接是通过标签 <a> 来定义的.
+<a href="http://www.baidu.com">这是一个链接</a>
+
+HTML 图像
+HTML 图像是通过标签 <img> 来定义的.
+<img src="w3cschool.png" width="104" height="142">
+
+
+
+3.属性
+属性	描述
+class	为html元素定义一个或多个类名（classname）(类名从样式文件引入)
+id	    定义元素的唯一id
+style	规定元素的行内样式（inline style）
+title	描述了元素的额外信息 (作为工具条使用)
+
+
+
+4.标题
