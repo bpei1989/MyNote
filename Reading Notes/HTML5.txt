@@ -55,3 +55,57 @@ title	描述了元素的额外信息 (作为工具条使用)
 
 
 4.标题
+
+标签	描述
+<html>	定义 HTML 文档
+<body>	定义文档的主体
+<h1> - <h6>	定义 HTML 标题
+<hr>	定义水平线
+<!--...-->	定义注释
+
+
+
+5.段落
+段落是通过 <p> 标签定义的。
+<p>这是一个段落 </p>
+<p>这是另一个段落</p>
+
+如果希望在不产生一个新段落的情况下进行换行（新行），用 <br /> 标签：
+<p>这个<br>段落<br>演示了分行的效果</p>
+
+
+
+6.文本格式化
+HTML 文本格式化标签
+标签	描述
+<b>	定义粗体文本
+<em>	定义着重文字
+<i>	定义斜体字
+<small>	定义小号字
+<strong>	定义加重语气
+<sub>	定义下标字
+<sup>	定义上标字
+<ins>	定义插入字
+<del>	定义删除字
+
+
+
+7.链接
+HTML 链接语法
+<a href="http://www.baidu.com/">百度</a>
+
+HTML 链接 - target 属性
+<a href="http://www.baidu.com/" target="_blank">百度</a>
+
+HTML 连接- id 属性
+<a id="tips">有用的提示部分</a>
+
+在HTML文档中创建一个链接到"有用的提示部分(id="tips"）"：
+<a href="#tips">访问有用的提示部分</a>
+
+从另一个页面创建一个链接到"有用的提示部分(id="tips"）"：
+<a href="http://www.xxx.com/html/html-links.html#tips">
+访问有用的提示部分</a>
+
+
+
