@@ -349,3 +349,272 @@ HTML <span> 元素是内联元素，可用作文本的容器
 
 
 
+14.HTML布局
+HTML 布局 - 提示
+Tip: 使用 CSS 最大的好处是，如果把 CSS 代码存放到外部样式表中，那么站点会更易于维护。通过编辑单一的文件，就可以改变所有页面的布局。如需学习更多有关 CSS 的知识，请访问我们的CSS 教程。
+Tip: 由于创建高级的布局非常耗时，使用模板是一个快速的选项。通过搜索引擎可以找到很多免费的网站模板（您可以使用这些预先构建好的网站布局，并优化它们）。
+
+HTML 布局标签
+标签	描述
+<div>	定义文档区块，块级(block-level)
+<span>	定义 span，用来组合文档中的行内元素。
+
+<!DOCTYPE html>
+<html>
+<head> 
+<meta charset="utf-8"> 
+<title>xxx(xxx.com)</title> 
+</head>
+<body>
+ 
+<div id="container" style="width:500px">
+ 
+<div id="header" style="background-color:#FFA500;">
+<h1 style="margin-bottom:0;">主要的网页标题</h1></div>
+ 
+<div id="menu" style="background-color:#FFD700;height:200px;width:100px;float:left;">
+<b>菜单</b><br>
+HTML<br>
+CSS<br>
+JavaScript</div>
+ 
+<div id="content" style="background-color:#EEEEEE;height:200px;width:400px;float:left;">
+内容在这里</div>
+ 
+<div id="footer" style="background-color:#FFA500;clear:both;text-align:center;">
+版权 © xxx.com</div>
+ 
+</div>
+ 
+</body>
+</html>
+
+
+
+15.HTML表单和输入
+HTML 表单
+表单是一个包含表单元素的区域。
+表单元素是允许用户在表单中输入内容,比如：文本域(textarea)、下拉列表、单选框(radio-buttons)、复选框(checkboxes)等等。
+表单使用表单标签 <form> 来设置:
+<form>
+.
+input 元素
+.
+</form>
+
+文本域（Text Fields）
+文本域通过<input type="text"> 标签来设定，当用户要在表单中键入字母、数字等内容时，就会用到文本域。
+<form>
+First name: <input type="text" name="firstname"><br>
+Last name: <input type="text" name="lastname">
+</form>
+
+密码字段
+密码字段通过标签<input type="password"> 来定义:
+<form>
+Password: <input type="password" name="pwd">
+</form>
+
+单选按钮（Radio Buttons）
+<input type="radio"> 标签定义了表单单选框选项
+<form>
+<input type="radio" name="sex" value="male">Male<br>
+<input type="radio" name="sex" value="female">Female
+</form>
+
+复选框（Checkboxes）
+<input type="checkbox"> 定义了复选框. 用户需要从若干给定的选择中选取一个或若干选项。
+<form>
+<input type="checkbox" name="vehicle" value="Bike">I have a bike<br>
+<input type="checkbox" name="vehicle" value="Car">I have a car 
+</form>
+
+提交按钮(Submit Button)
+<input type="submit"> 定义了提交按钮.
+当用户单击确认按钮时，表单的内容会被传送到另一个文件。表单的动作属性定义了目的文件的文件名。由动作属性定义的这个文件通常会对接收到的输入数据进行相关的处理。:
+<form name="input" action="html_form_action.php" method="get">
+Username: <input type="text" name="user">
+<input type="submit" value="Submit">
+</form>
+
+
+
+16.HTML框架
+iframe语法:
+<iframe src="URL"></iframe>
+该URL指向不同的网页。
+<iframe src="demo_iframe.htm" width="200" height="200"></iframe>
+
+使用iframe来显示目录链接页面
+iframe可以显示一个目标链接的页面
+目标链接的属性必须使用iframe的属性，如下实例:
+实例
+<iframe src="demo_iframe.htm" name="iframe_a"></iframe>
+<p><a href="http://www.runoob.com" target="iframe_a">RUNOOB.COM</a></p>
+
+
+
+17.颜色值
+HTML 颜色由一个十六进制符号来定义，这个符号由红色、绿色和蓝色的值组成（RGB）。
+种颜色的最小值是0（十六进制：#00）。最大值是255（十六进制：#FF）。
+141个颜色名称是在HTML和CSS颜色规范定义的
+比如：Black就是#000000
+
+颜色由红(R)、绿(G)、蓝(B)组成。
+十六进制值的写法为#号后跟三个或六个十六进制字符。
+三位数表示法为：#RGB，转换为6位数表示为：#RRGGBB。
+红色：#F00	#FF0000	rgb(255,0,0)
+
+
+
+18.HTML脚本
+HTML <script> 标签
+<script>
+document.write("Hello World!");
+</script>
+
+HTML<noscript> 标签
+<noscript> 标签提供无法使用脚本时的替代内容，比方在浏览器禁用脚本时，或浏览器不支持客户端脚本时。
+<noscript>元素可包含普通 HTML 页面的 body 元素中能够找到的所有元素。
+只有在浏览器不支持脚本或者禁用脚本时，才会显示 <noscript> 元素中的内容：
+实例
+<script>
+document.write("Hello World!")
+</script>
+<noscript>抱歉，你的浏览器不支持 JavaScript!</noscript>
+
+
+
+19.总结
+HTML 速查列表
+
+HTML 基本文档
+<!DOCTYPE html>
+<html>
+<head>
+<title>文档标题</title>
+</head>
+<body>
+可见文本...
+</body>
+</html>
+
+
+基本标签（Basic Tags）
+<h1>最大的标题</h1>
+<h2> . . . </h2>
+<h3> . . . </h3>
+<h4> . . . </h4>
+<h5> . . . </h5>
+<h6>最小的标题</h6>
+ 
+<p>这是一个段落。</p>
+<br> （换行）
+<hr> （水平线）
+<!-- 这是注释 -->
+
+
+文本格式化（Formatting）
+<b>粗体文本</b>
+<code>计算机代码</code>
+<em>强调文本</em>
+<i>斜体文本</i>
+<kbd>键盘输入</kbd> 
+<pre>预格式化文本</pre>
+<small>更小的文本</small>
+<strong>重要的文本</strong>
+ 
+<abbr> （缩写）
+<address> （联系信息）
+<bdo> （文字方向）
+<blockquote> （从另一个源引用的部分）
+<cite> （工作的名称）
+<del> （删除的文本）
+<ins> （插入的文本）
+<sub> （下标文本）
+<sup> （上标文本）
+
+
+链接（Links）
+普通的链接：<a href="http://www.example.com/">链接文本</a>
+图像链接： <a href="http://www.example.com/"><img src="URL" alt="替换文本"></a>
+邮件链接： <a href="mailto:webmaster@example.com">发送e-mail</a>
+书签：
+<a id="tips">提示部分</a>
+<a href="#tips">跳到提示部分</a>
+
+
+图片（Images）
+<img src="URL" alt="替换文本" height="42" width="42">
+
+
+样式/区块（Styles/Sections）
+<style type="text/css">
+h1 {color:red;}
+p {color:blue;}
+</style>
+<div>文档中的块级元素</div>
+<span>文档中的内联元素</span>
+
+
+无序列表
+<ul>
+    <li>项目</li>
+    <li>项目</li>
+</ul>
+
+
+有序列表
+<ol>
+    <li>第一项</li>
+    <li>第二项</li>
+</ol>
+
+
+定义列表
+<dl>
+  <dt>项目 1</dt>
+    <dd>描述项目 1</dd>
+  <dt>项目 2</dt>
+    <dd>描述项目 2</dd>
+</dl>
+
+
+表格（Tables）
+<table border="1">
+  <tr>
+    <th>表格标题</th>
+    <th>表格标题</th>
+  </tr>
+  <tr>
+    <td>表格数据</td>
+    <td>表格数据</td>
+  </tr>
+</table>
+
+
+框架（Iframe）
+<iframe src="demo_iframe.htm"></iframe>
+表单（Forms）
+<form action="demo_form.php" method="post/get">
+<input type="text" name="email" size="40" maxlength="50">
+<input type="password">
+<input type="checkbox" checked="checked">
+<input type="radio" checked="checked">
+<input type="submit" value="Send">
+<input type="reset">
+<input type="hidden">
+<select>
+<option>苹果</option>
+<option selected="selected">香蕉</option>
+<option>樱桃</option>
+</select>
+<textarea name="comment" rows="60" cols="20"></textarea>
+ 
+</form>
+
+
+实体（Entities）
+&lt; 等同于 <
+&gt; 等同于 >
+&#169; 等同于 ©
